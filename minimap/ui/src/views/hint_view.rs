@@ -1,12 +1,12 @@
+use amml_i18n::localize::Localizer;
+use amml_i18n::text::{Args, Text, UserText};
+use amml_ui::draw::{TextStyle, TypeSize};
+use amml_ui::font::FontFace;
+use amml_ui::text::UiLocale;
+use amml_ui::tokens::rule::Elevation;
+use amml_ui::tokens::{ColorToken, SpacingToken, color, spacing};
+use amml_ui::widget::{Surface, SurfaceLevel};
 use egui::{Align2, Area, Context, RichText, vec2};
-use levi_i18n::localize::Localizer;
-use levi_i18n::text::{Args, Text, UserText};
-use levi_ui::draw::{TextStyle, TypeSize};
-use levi_ui::font::FontFace;
-use levi_ui::text::UiLocale;
-use levi_ui::tokens::rule::Elevation;
-use levi_ui::tokens::{ColorToken, SpacingToken, color, spacing};
-use levi_ui::widget::{Surface, SurfaceLevel};
 use minimap_core::structs::ui::HintKeys;
 
 use crate::id::MinimapUiId;

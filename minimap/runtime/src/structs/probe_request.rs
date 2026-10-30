@@ -1,6 +1,6 @@
 use minimap_core::structs::pos::ChunkPos;
 
-// what the shim should probe after a block change
+// what the host should probe after a block change
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ProbeRequest {
     None,

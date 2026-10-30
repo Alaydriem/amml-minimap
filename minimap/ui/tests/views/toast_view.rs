@@ -1,4 +1,4 @@
-use levi_ui::icon::Icon;
+use amml_ui::icon::Icon;
 use minimap_core::services::waypoints::WaypointStore;
 use minimap_core::structs::ui::{MapAction, MenuItem, MenuTarget};
 

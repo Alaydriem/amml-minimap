@@ -1,14 +1,14 @@
+use amml_i18n::text::Text;
+use amml_ui::draw::{TextStyle, TypeSize};
+use amml_ui::font::FontFace;
+use amml_ui::text::UiText;
+use amml_ui::tokens::{ColorToken, color};
+use amml_ui::widget::Toggle;
 use egui::{Label, RichText, Sense, Ui};
-use levi_i18n::text::Text;
-use levi_ui::draw::{TextStyle, TypeSize};
-use levi_ui::font::FontFace;
-use levi_ui::text::UiText;
-use levi_ui::tokens::{ColorToken, color};
-use levi_ui::widget::Toggle;
 
 use crate::views::SplitRow;
 
-/// A label with a levi-ui switch at the right of the card, and an optional note after the label (the tools card's
+/// A label with a amml-ui switch at the right of the card, and an optional note after the label (the tools card's
 /// "zoom in"). A click on the label flips the switch too. The switch keeps its place; the label and the note are cut.
 pub struct ToggleRow<'a> {
     label: Text,

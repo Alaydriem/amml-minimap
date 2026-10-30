@@ -4,7 +4,7 @@ use minimap_core::structs::pos::ChunkPos;
 
 use crate::structs::{SubmitStatus, TickInput};
 
-// one call from the shim into the runtime, in the order the runtime received it
+// one call from the host into the runtime, in the order the runtime received it
 #[derive(Debug, Clone, PartialEq)]
 pub enum CaptureEvent {
     Enter { dim: i32 },

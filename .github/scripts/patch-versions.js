@@ -10,8 +10,7 @@
  * Files patched:
  * - Cargo.toml        ([workspace.package] version, inherited by every member)
  * - Cargo.lock        (the entry of every workspace member)
- * - tooth.json        (top-level version, if the file exists)
- * - shim/xmake.lua    (modVersion, if the file exists)
+ * - minimap/amml/descriptor.hcl (the mod's `version`, shown by the mod manager)
  *
  * Members are read from the root Cargo.toml, so a new crate is picked up
  * without editing this script. A member that sets its own version instead of
@@ -94,25 +93,13 @@ if (fs.existsSync(lockPath)) {
   console.log(`Patched: Cargo.lock (${members.join(', ')})`);
 }
 
-const toothPath = path.join(rootDir, 'tooth.json');
-if (fs.existsSync(toothPath)) {
-  replaceOnce(
-    toothPath,
-    read(toothPath),
-    /^(  "version":\s*)"[^"]*"/m,
-    `$1"${version}"`,
-  );
-}
-
-const xmakePath = path.join(rootDir, 'shim', 'xmake.lua');
-if (fs.existsSync(xmakePath)) {
-  replaceOnce(
-    xmakePath,
-    read(xmakePath),
-    /(modVersion\s*=\s*)"[^"]*"/,
-    `$1"${version}"`,
-  );
-}
+const descriptorPath = path.join(rootDir, 'minimap', 'amml', 'descriptor.hcl');
+replaceOnce(
+  descriptorPath,
+  read(descriptorPath),
+  /^(version\s*=\s*)"[^"]*"/m,
+  `$1"${version}"`,
+);
 
 console.log('');
 console.log(`All files patched to version ${version}`);

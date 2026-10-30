@@ -1,5 +1,5 @@
+use amml_i18n::text::Text;
 use egui::{Area, Id, pos2};
-use levi_i18n::text::Text;
 use minimap_ui::message::MinimapMessage;
 use minimap_ui::testing::{PassOutput, UiHarness};
 use minimap_ui::views::ToggleRow;

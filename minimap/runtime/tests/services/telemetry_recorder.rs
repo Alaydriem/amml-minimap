@@ -12,7 +12,7 @@ fn a_row_holds_the_interval_quantiles_probe_and_bake_means() {
         recorder.on_paint(us / 10, 0, 0);
     }
     recorder.on_memory(300 * 1024 * 1024, 200 * 1024 * 1024);
-    // the tick call takes 2 ms, then the shim probes two chunks over the next 0.3 ms
+    // the tick call takes 2 ms, then the host probes two chunks over the next 0.3 ms
     recorder.on_tick(start, start + Duration::from_millis(2));
     recorder.on_probe(start + Duration::from_micros(2100));
     recorder.on_probe(start + Duration::from_micros(2300));

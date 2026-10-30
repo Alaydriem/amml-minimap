@@ -1,8 +1,4 @@
 /target
 /mise.local.toml
-/shim/build
-/shim/.xmake
-/shim/bin
-/e2e/build
-/e2e/.xmake
+/dist
 docs

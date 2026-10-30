@@ -8,7 +8,7 @@
 [![Build](https://img.shields.io/github/actions/workflow/status/alaydriem/levi-minimap/build.yml?branch=master&label=build)](https://github.com/alaydriem/levi-minimap/actions/workflows/build.yml)
 [![License](https://img.shields.io/github/license/alaydriem/levi-minimap)](./LICENSE)
 ![Minecraft Bedrock](https://img.shields.io/badge/Minecraft_Bedrock-1.26.51-62B47A)
-[![LeviLamina](https://img.shields.io/badge/LeviLamina-26.51.6-4A90D9)](https://github.com/LiteLDev/LeviLamina)
+[![AMML](https://img.shields.io/badge/AMML-mod-4A90D9)](https://github.com/alaydriem/amml)
 
 </div>
 
@@ -45,17 +45,21 @@ Client-side only. The map is built from the chunks your game has already loaded.
 
 ## Installation
 
-Requires the client build of [LeviLamina](https://github.com/LiteLDev/LeviLamina) and [Alaydriem's Mod Manager](https://github.com/alaydriem/levi-modmanager).
+Requires:
 
-```powershell
-lip install github.com/alaydriem/levi-minimap#client
-```
+- the **AMML loader** (0.1.0 or later), which loads the mod into the game. The loader also carries the recipes that
+  find the game addresses the minimap uses (`recipes/game` and `recipes/minimap`). An older loader does not have
+  them: it logs "required entry ... did not resolve" and the minimap stays off. Update the loader first.
+- [Alaydriem's Mod Manager](https://github.com/alaydriem/modmanager), installed as an AMML mod.
 
-Or download the zip from the [latest release](https://github.com/alaydriem/levi-minimap/releases/latest) and extract it into `mods/`.
+Download the zip from the [latest release](https://github.com/alaydriem/levi-minimap/releases/latest) and extract it.
+It holds one folder, `alaydriem-minimap`, with `alaydriem_minimap.dll`, `amml.hcl` and `OFL.txt`. Put that folder in
+the AMML mods folder of the game, so that the files are in `mods/amml/alaydriem-minimap/`. Then enable the mod in the
+mod manager.
 
-| Mini Map | Minecraft Bedrock | LeviLamina | Mod Manager |
+| Mini Map | Minecraft Bedrock | AMML loader | Mod Manager |
 | --- | --- | --- | --- |
-| 0.1.0 | 1.26.51 | 26.51.6+ | 0.1.x |
+| 0.1.0 | 1.26.51, 1.26.60 | 0.1.0 or later | 0.1.x |
 
 ## Controls
 
@@ -118,14 +122,16 @@ Waypoints and the map cache are in `mods/alaydriem-minimap/data/`.
 
 ## Building
 
-Requires Windows x64, [mise](https://mise.jdx.dev), rustup, [cargo-nextest](https://nexte.st) and LLVM (`clang-cl`).
+Requires Windows x64, [mise](https://mise.jdx.dev), rustup and [cargo-nextest](https://nexte.st). The `amml` and `modmanager-amml` repos must sit next to this one.
 
 ```powershell
 mise trust
 mise run preflight
-mise run build-mod
+mise run package
 mise run test
 ```
+
+`mise run package` writes `dist/alaydriem-minimap`.
 
 ## License
 

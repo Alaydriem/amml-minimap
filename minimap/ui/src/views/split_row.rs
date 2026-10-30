@@ -1,5 +1,5 @@
+use amml_ui::tokens::{SpacingToken, spacing};
 use egui::{Align, Layout, Rect, Sense, TextWrapMode, Ui, UiBuilder, pos2, vec2};
-use levi_ui::tokens::{SpacingToken, spacing};
 
 /// A card row across the card's width: the trailing part (a switch, a close button, a short name) is laid out first
 /// at the right, then the leading part gets the room that is left, with its labels cut. So a long translation never

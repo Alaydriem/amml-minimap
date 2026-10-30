@@ -1,5 +1,5 @@
-use levi_rules::literal::DesignLiteralScan;
-use levi_rules::source::SourceFiles;
+use amml_ui_rules::literal::DesignLiteralScan;
+use amml_ui_rules::source::SourceFiles;
 
 #[test]
 fn design_literals() {

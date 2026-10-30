@@ -1,17 +1,17 @@
+use amml_ui::draw::{Corner, Draw, TextFit, TextStyle, TypeSize};
+use amml_ui::font::FontFace;
+use amml_ui::icon::{Icon, IconSize};
+use amml_ui::tokens::rule::Elevation;
+use amml_ui::tokens::{ColorToken, SpacingToken, color, spacing};
 use egui::{Align2, Context, LayerId, Order, Rect, pos2, vec2};
-use levi_ui::draw::{Corner, Draw, TextFit, TextStyle, TypeSize};
-use levi_ui::font::FontFace;
-use levi_ui::icon::{Icon, IconSize};
-use levi_ui::tokens::rule::Elevation;
-use levi_ui::tokens::{ColorToken, SpacingToken, color, spacing};
 use minimap_core::structs::ui::{MessageKind, MessageLine};
 
 use crate::id::MinimapUiId;
 
 // the message line at the top centre, over either map: a check for something done, an info mark
 // for a note. It takes no input, so it is painted straight on a foreground layer and shows in the
-// frame that set it. The levi-ui toast has a dismiss button and a timer this line does not have, so it
-// is built from levi-ui parts here. The words come from minimap-core and the runtime and stay English
+// frame that set it. The amml-ui toast has a dismiss button and a timer this line does not have, so it
+// is built from amml-ui parts here. The words come from minimap-core and the runtime and stay English
 // for now
 pub struct ToastView;
 

@@ -56,8 +56,7 @@
           "CHANGELOG.md",
           "Cargo.toml",
           "Cargo.lock",
-          "tooth.json",
-          "shim/xmake.lua"
+          "minimap/amml/descriptor.hcl"
         ],
         "message": "chore(release): ${nextRelease.version} [skip ci]\n\n${nextRelease.notes}"
       }

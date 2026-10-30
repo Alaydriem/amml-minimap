@@ -14,8 +14,8 @@ pub struct TelemetryRecorder {
     tick_ms: SampleWindow,
     upload_ms: SampleWindow,
     upload_bytes: u64,
-    // one tick's work: from the tick call to the last chunk the shim submitted after it, so the
-    // shim's probing is included
+    // one tick's work: from the tick call to the last chunk the host submitted after it, so the
+    // host's probing is included
     tick_started: Option<Instant>,
     tick_end: Option<Instant>,
     last_probe: Option<Instant>,
@@ -71,7 +71,7 @@ impl TelemetryRecorder {
         }
     }
 
-    // process memory as the shim sampled it; zero means not sampled
+    // process memory as the host sampled it; zero means not sampled
     pub fn on_memory(&mut self, working_set_bytes: u64, private_bytes: u64) {
         if working_set_bytes > 0 {
             self.working_set_bytes = working_set_bytes;
@@ -79,14 +79,14 @@ impl TelemetryRecorder {
         }
     }
 
-    // the runtime's tick call ran from `started` to `ended`; the shim probes after it
+    // the runtime's tick call ran from `started` to `ended`; the host probes after it
     pub fn on_tick(&mut self, started: Instant, ended: Instant) {
         self.close_tick();
         self.tick_started = Some(started);
         self.tick_end = Some(ended);
     }
 
-    // a chunk the shim probed (submitted as loaded)
+    // a chunk the host probed (submitted as loaded)
     pub fn on_probe(&mut self, now: Instant) {
         self.chunks_probed += 1;
         self.last_probe = Some(now);

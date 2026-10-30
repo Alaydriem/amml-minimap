@@ -1,5 +1,5 @@
-use levi_i18n::message::Message;
-use levi_i18n::text::Text;
+use amml_i18n::message::Message;
+use amml_i18n::text::Text;
 use minimap_ui::message::MinimapMessage;
 use minimap_ui::runtime::MinimapLocale;
 

@@ -1,0 +1,54 @@
+[package]
+name = "minimap-amml"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+publish.workspace = true
+autotests = false
+
+[lib]
+name = "alaydriem_minimap"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+amm-client.workspace = true
+amm-core.workspace = true
+amml-game.workspace = true
+amml-msvc.workspace = true
+amml-sdk.workspace = true
+bytemuck.workspace = true
+curia.workspace = true
+minimap-core.workspace = true
+minimap-link.workspace = true
+minimap-runtime.workspace = true
+minimap-store.workspace = true
+thiserror.workspace = true
+windows-sys = { workspace = true, features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Gdi",
+  "Win32_System_ProcessStatus",
+  "Win32_System_SystemInformation",
+  "Win32_System_Threading",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
+[dev-dependencies]
+amm-abi.workspace = true
+amm-client = { workspace = true, features = ["test-support"] }
+amm-ffi.workspace = true
+hcl-rs.workspace = true
+tempfile.workspace = true
+
+[[test]]
+name = "integration"
+path = "tests/integration.rs"
+
+# the real mod manager host, linked in; process-global, so nextest runs each test in its own process
+[[test]]
+name = "e2e"
+path = "tests/e2e.rs"
+
+[lints]
+workspace = true

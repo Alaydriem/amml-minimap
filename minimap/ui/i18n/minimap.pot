@@ -1,4 +1,4 @@
-# Messages of the minimap domain, written by levi-i18n-tool. Do not edit.
+# Messages of the minimap domain, written by amml-i18n-tool. Do not edit.
 msgid ""
 msgstr ""
 "Content-Type: text/plain; charset=UTF-8\n"

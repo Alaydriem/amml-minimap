@@ -1,15 +1,15 @@
 use std::sync::Arc;
 
-use levi_i18n::localize::Localizer;
-use levi_i18n::message::Message;
-use levi_i18n::service::{LocaleSetting, LocalizationService};
-use levi_ui::LeviUiMessage;
-use levi_ui::text::LeviUiPacks;
+use amml_i18n::localize::Localizer;
+use amml_i18n::message::Message;
+use amml_i18n::service::{LocaleSetting, LocalizationService};
+use amml_ui::LeviUiMessage;
+use amml_ui::text::LeviUiPacks;
 
 use crate::message::MinimapMessage;
 use crate::text::MinimapPacks;
 
-/// The minimap's words in one language: its own packs and the levi-ui widgets' packs.
+/// The minimap's words in one language: its own packs and the amml-ui widgets' packs.
 pub struct MinimapLocale;
 
 impl MinimapLocale {

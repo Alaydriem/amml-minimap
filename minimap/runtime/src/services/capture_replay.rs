@@ -4,7 +4,7 @@ use crate::errors::RuntimeError;
 use crate::services::{CaptureReader, Runtime};
 use crate::structs::{CaptureEvent, ScanPlan};
 
-// drives a runtime with recorded events, the way the shim called it; worlds are entered at `identity`
+// drives a runtime with recorded events, the way the host called it; worlds are entered at `identity`
 pub struct CaptureReplay {
     identity: WorldIdentity,
     plan: ScanPlan,

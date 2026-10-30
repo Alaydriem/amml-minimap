@@ -1,19 +1,19 @@
+use amml_i18n::localize::Localizer;
+use amml_i18n::text::{Args, Text, UserText};
+use amml_ui::draw::{Draw, TextFit, TextStyle, TypeSize};
+use amml_ui::font::FontFace;
+use amml_ui::icon::Icon;
+use amml_ui::text::UiLocale;
+use amml_ui::tokens::{ColorToken, ContainerToken, color, container};
+use amml_ui::widget::{Menu, MenuItem as MenuRow, MenuLeading};
 use egui::{Area, Context, Order, Sense, Ui, pos2, vec2};
-use levi_i18n::localize::Localizer;
-use levi_i18n::text::{Args, Text, UserText};
-use levi_ui::draw::{Draw, TextFit, TextStyle, TypeSize};
-use levi_ui::font::FontFace;
-use levi_ui::icon::Icon;
-use levi_ui::text::UiLocale;
-use levi_ui::tokens::{ColorToken, ContainerToken, color, container};
-use levi_ui::widget::{Menu, MenuItem as MenuRow, MenuLeading};
 use minimap_core::structs::ui::{MapAction, MapMenu, MenuItem, MenuTarget, UiFrame};
 
 use crate::id::MinimapUiId;
 use crate::message::MinimapMessage;
 
 // the right-click menu at the point that opened it: a header naming the block or the waypoint,
-// then one levi-ui menu item per entry; a left press anywhere else closes it
+// then one amml-ui menu item per entry; a left press anywhere else closes it
 pub struct MenuView;
 
 impl MenuView {

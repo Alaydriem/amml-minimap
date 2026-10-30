@@ -34,48 +34,32 @@ run = "cargo run -q -p minimap-ui --example minimap_i18n_extract -- --check"
 description = "Writes the en_XA pseudo-locale pack of minimap.pot into minimap/ui/i18n/packs/en_XA.json"
 dir = "{{config_root}}"
 run = [
-  "cargo install -q --locked --git https://github.com/Alaydriem/levi-crates --tag v1.0.0 levi-i18n-tool",
-  "levi-i18n-tool pseudo minimap/ui/i18n/minimap.pot minimap/ui/i18n/packs/en_XA.json",
+  "cargo install -q --locked --path ../amml/i18n/tool",
+  "amml-i18n-tool pseudo minimap/ui/i18n/minimap.pot minimap/ui/i18n/packs/en_XA.json",
 ]
 
-[tasks.header]
-description = "Regenerates shim/include/levi_minimap.h from the minimap-ffi crate"
-dir = "{{config_root}}"
-run = "cbindgen --config minimap/ffi/cbindgen.toml --crate minimap-ffi --output shim/include/levi_minimap.h minimap/ffi"
-
-[tasks.header-check]
-description = "Fails when shim/include/levi_minimap.h is out of date with the minimap-ffi crate"
-dir = "{{config_root}}"
-run = "cbindgen --verify --config minimap/ffi/cbindgen.toml --crate minimap-ffi --output shim/include/levi_minimap.h minimap/ffi"
-
-[tasks.build-ffi]
-description = "Builds the minimap_ffi static library in release mode"
-dir = "{{config_root}}"
-run = "cargo build --release -p minimap-ffi"
-
-[tasks.build-mod]
-description = "Builds the LeviLamina mod into shim/bin/alaydriem-minimap (a full rebuild: about 10 s)"
-depends = ["build-ffi", "header"]
-dir = "{{config_root}}/shim"
-# -r: levibuildscript 0.6.2 deletes its prelink library after each link but skips the prelink when only
-# minimap_ffi.lib changed, so an incremental relink fails with LNK1181 bedrock_runtime_api.lib
-run = ["xmake f -p windows -a x64 -m release -y", "xmake -r -y"]
-
-[tasks.install-mod]
-description = "Copies the built mod into the game mods folder named by LM_MODS_DIR (set it in mise.local.toml)"
-depends = ["build-mod"]
+[tasks.package]
+description = "Builds the AMML mod into dist/alaydriem-minimap (alaydriem_minimap.dll, amml.hcl and the font licence OFL.txt)"
 dir = "{{config_root}}"
 shell = "bash -c"
-# LeviLamina finds a mod's folder from the manifest name, so the folder carries that name
-run = 'mkdir -p "${LM_MODS_DIR:?set LM_MODS_DIR in mise.local.toml}/alaydriem-minimap" && cp -r shim/bin/alaydriem-minimap/. "$LM_MODS_DIR/alaydriem-minimap/"'
+run = '''
+set -e
+cargo build --release -p minimap-amml
+mkdir -p dist/alaydriem-minimap
+cp target/release/alaydriem_minimap.dll dist/alaydriem-minimap/alaydriem_minimap.dll
+cp minimap/amml/amml.hcl dist/alaydriem-minimap/amml.hcl
+# the DLL embeds the NordwandMono font from amml-ui; its licence ships beside it
+cp ../amml/ui/kit/assets/fonts/OFL.txt dist/alaydriem-minimap/OFL.txt
+echo "built dist/alaydriem-minimap"
+'''
 
 [tasks.e2e]
-description = "Runs minimap against the real mod manager host (minimap-ffi's e2e target) and replays the synthetic walk and every capture in fixtures/"
+description = "Runs minimap against the real mod manager host (minimap-amml's e2e target) and replays the synthetic walk and every capture in fixtures/"
 dir = "{{config_root}}"
 env = { LM_E2E_CAPTURES = "{{config_root}}/target/e2e" }
 run = [
   "cargo run -q --release -p minimap-bench --bin capture-tool -- e2e {{config_root}}/fixtures {{config_root}}/target/e2e",
-  "cargo nextest run -p minimap-ffi --test e2e",
+  "cargo nextest run -p minimap-amml --test e2e",
 ]
 
 [tasks.bench]
@@ -107,7 +91,3 @@ run = "cargo run -q --release -p minimap-bench --bin footprint"
 description = "Prints the in-game procedure for recording a new probe capture. Runs nothing"
 dir = "{{config_root}}"
 run = "cargo run -q --release -p minimap-bench --bin capture-tool -- procedure"
-
-[tools]
-"cargo:cbindgen" = "0.29.2"
-"github:xmake-io/xmake" = "3.1.1"

@@ -10,7 +10,7 @@ use crate::services::field_reader::FieldReader;
 use crate::structs::{CaptureEvent, CaptureHeader, SubmitStatus, TickInput};
 
 // .lmcap: a 20-byte header and the terrain config as JSON, then records of
-// [tag u8][payload length u32][payload], zstd-compressed (or raw, for the C++ e2e harness)
+// [tag u8][payload length u32][payload], zstd-compressed (or raw, for readers without zstd)
 pub struct CaptureCodec;
 
 impl CaptureCodec {

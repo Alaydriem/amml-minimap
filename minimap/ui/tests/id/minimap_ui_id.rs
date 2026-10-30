@@ -1,5 +1,5 @@
+use amml_ui::id::LeviUiId;
 use egui::Id;
-use levi_ui::id::LeviUiId;
 use minimap_ui::id::MinimapUiId;
 
 /// An id enum from another crate, with a derived `Hash`.

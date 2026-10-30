@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use levi_i18n_tool::catalog::CatalogCheck;
+use amml_i18n_tool::catalog::CatalogCheck;
 use minimap_ui::message::MinimapMessage;
 
 #[test]

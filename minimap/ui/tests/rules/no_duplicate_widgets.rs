@@ -1,5 +1,5 @@
-use levi_rules::source::SourceFiles;
-use levi_rules::widget_name::{DuplicateScan, WidgetNames};
+use amml_ui_rules::source::SourceFiles;
+use amml_ui_rules::widget_name::{DuplicateScan, WidgetNames};
 
 #[test]
 fn no_duplicate_widgets() {
@@ -7,5 +7,5 @@ fn no_duplicate_widgets() {
     let files = SourceFiles::new(concat!(env!("CARGO_MANIFEST_DIR"), "/src"));
     let hits = DuplicateScan::scan(&names, &files).unwrap_or_else(|error| panic!("{error}"));
     let list: Vec<String> = hits.iter().map(ToString::to_string).collect();
-    assert!(hits.is_empty(), "copies of levi-ui widgets:\n{}", list.join("\n"));
+    assert!(hits.is_empty(), "copies of amml-ui widgets:\n{}", list.join("\n"));
 }

@@ -1,11 +1,11 @@
+use amml_i18n::text::Text;
+use amml_ui::draw::{TextStyle, TypeSize};
+use amml_ui::font::FontFace;
+use amml_ui::text::UiText;
+use amml_ui::tokens::selector::AxisColor;
+use amml_ui::tokens::{ColorToken, SpacingToken, color, spacing};
 use egui::text::{LayoutJob, TextFormat};
 use egui::{Align, Color32, Label, Layout, RichText, Ui};
-use levi_i18n::text::Text;
-use levi_ui::draw::{TextStyle, TypeSize};
-use levi_ui::font::FontFace;
-use levi_ui::text::UiText;
-use levi_ui::tokens::selector::AxisColor;
-use levi_ui::tokens::{ColorToken, SpacingToken, color, spacing};
 use minimap_core::structs::ui::HoverInfo;
 
 use crate::message::MinimapMessage;

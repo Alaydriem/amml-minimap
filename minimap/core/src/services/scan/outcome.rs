@@ -4,6 +4,6 @@ pub enum ScanOutcome {
     Scanned { needs_retry: bool },
     NotLoaded,
     TopPlaceholder,
-    // the shim reached its loaded-chunk limit before this candidate
+    // the host reached its loaded-chunk limit before this candidate
     NotProbed,
 }

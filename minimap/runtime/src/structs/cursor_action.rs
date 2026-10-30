@@ -1,4 +1,4 @@
-// what the shim does with the Win32 cursor clip this tick
+// what the host does with the Win32 cursor clip this tick
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum CursorAction {
     #[default]

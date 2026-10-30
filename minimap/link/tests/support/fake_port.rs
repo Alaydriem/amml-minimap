@@ -7,7 +7,7 @@ use amm_core::errors::LinkError;
 use amm_core::structs::descriptor::Capability;
 use amm_core::structs::event::ModEvent;
 use amm_core::structs::lease::AcquireOutcome;
-use levi_i18n::localize::Localizer;
+use amml_i18n::localize::Localizer;
 use minimap_core::config::Config;
 use minimap_core::structs::draw::TextureGrant;
 use minimap_link::traits::ManagerPort;

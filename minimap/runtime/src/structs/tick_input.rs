@@ -10,7 +10,7 @@ pub struct TickInput {
     pub dead: bool,
     // the game holds the mouse: no chat, menu or other screen is open
     pub mouse_grabbed: bool,
-    // process memory, sampled by the shim
+    // process memory, sampled by the host
     pub working_set_bytes: u64,
     pub private_bytes: u64,
 }

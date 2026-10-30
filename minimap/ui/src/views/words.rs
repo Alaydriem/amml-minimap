@@ -1,7 +1,7 @@
+use amml_i18n::text::Text;
+use amml_ui::draw::TextStyle;
+use amml_ui::text::UiText;
 use egui::{Color32, RichText, Ui};
-use levi_i18n::text::Text;
-use levi_ui::draw::TextStyle;
-use levi_ui::text::UiText;
 
 /// The cards' egui labels, from a `Text` in the context's language.
 pub struct Words;

@@ -1,4 +1,4 @@
-use levi_ui::icon::{Icon, IconShape};
+use amml_ui::icon::{Icon, IconShape};
 
 // the text a font icon paints, to find it among a pass's texts
 pub struct IconText;

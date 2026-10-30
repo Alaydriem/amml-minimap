@@ -2,9 +2,9 @@ use std::sync::{Arc, OnceLock};
 
 use amm_client::link::{FrameHandler, FrameInputView};
 use amm_core::structs::frame::{CursorShape, FrameInputData, LayerKind};
+use amml_ui::font::FontSource;
+use amml_ui::theme::Theme;
 use egui::{Context, RawInput, Rect};
-use levi_ui::font::FontSource;
-use levi_ui::theme::Theme;
 use minimap_core::config::Config;
 use minimap_core::structs::draw::TextureGrant;
 use minimap_core::structs::view::PlayerSnapshot;
@@ -25,7 +25,7 @@ fn data(layer: LayerKind, time_secs: f64) -> FrameInputData<'static> {
     }
 }
 
-// one pass of `layer` through the handler in a levi-ui context, the way amm-client runs it
+// one pass of `layer` through the handler in a amml-ui context, the way amm-client runs it
 fn pass(
     handler: &mut MinimapFrameHandler,
     ctx: &Context,

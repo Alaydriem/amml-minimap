@@ -1,9 +1,9 @@
+use amml_i18n::message::Message;
+use amml_i18n::text::{Args, Text};
+use amml_ui::font::FontSource;
+use amml_ui::theme::Theme;
+use amml_ui::tokens::{ContainerToken, container};
 use egui::Rect;
-use levi_i18n::message::Message;
-use levi_i18n::text::{Args, Text};
-use levi_ui::font::FontSource;
-use levi_ui::theme::Theme;
-use levi_ui::tokens::{ContainerToken, container};
 use minimap_core::services::ui::DimensionName;
 use minimap_core::services::waypoints::WaypointStore;
 use minimap_core::structs::ui::{MapAction, MenuItem, MenuTarget};

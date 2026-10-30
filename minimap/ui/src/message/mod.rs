@@ -1,4 +1,4 @@
-use levi_i18n::message::{Domain, Message};
+use amml_i18n::message::{Domain, Message};
 
 /// The words the minimap's world map views paint. Text that minimap-core and the runtime build (menu items,
 /// dimension and biome names, toasts) stays English for now and is shown as it comes.

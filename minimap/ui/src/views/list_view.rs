@@ -1,12 +1,12 @@
+use amml_i18n::text::{Args, Text};
+use amml_ui::LeviUiMessage;
+use amml_ui::draw::{Corner, Draw, TextFit, TextStyle, TypeSize};
+use amml_ui::font::FontFace;
+use amml_ui::icon::Icon;
+use amml_ui::tokens::rule::Elevation;
+use amml_ui::tokens::{ColorToken, SpacingToken, color, spacing};
+use amml_ui::widget::{IconButton, IconButtonSize, Surface, SurfaceLevel, TextField, TextFieldKind};
 use egui::{Align2, Area, Color32, Context, Order, ScrollArea, Sense, Ui, pos2, vec2};
-use levi_i18n::text::{Args, Text};
-use levi_ui::LeviUiMessage;
-use levi_ui::draw::{Corner, Draw, TextFit, TextStyle, TypeSize};
-use levi_ui::font::FontFace;
-use levi_ui::icon::Icon;
-use levi_ui::tokens::rule::Elevation;
-use levi_ui::tokens::{ColorToken, SpacingToken, color, spacing};
-use levi_ui::widget::{IconButton, IconButtonSize, Surface, SurfaceLevel, TextField, TextFieldKind};
 use minimap_core::services::ui::{WaypointDistance, WaypointFilter};
 use minimap_core::structs::ui::{MapAction, UiFrame};
 use minimap_core::structs::waypoint::Waypoint;
@@ -81,7 +81,7 @@ impl ListView {
         Self::limit(&mut drafts.search, WaypointFilter::QUERY_CHARS);
     }
 
-    /// Cuts `text` to `chars` characters: the levi-ui field has no limit of its own.
+    /// Cuts `text` to `chars` characters: the amml-ui field has no limit of its own.
     pub fn limit(text: &mut String, chars: usize) {
         if let Some((end, _)) = text.char_indices().nth(chars) {
             text.truncate(end);

@@ -2,10 +2,10 @@
 use std::hint::black_box;
 use std::time::Duration;
 
+use amml_ui::font::FontSource;
+use amml_ui::theme::Theme;
 use criterion::{BatchSize, BenchmarkId, Criterion, Throughput, criterion_group, criterion_main};
 use egui::{Context, Event, Pos2, RawInput, Rect, pos2, vec2};
-use levi_ui::font::FontSource;
-use levi_ui::theme::Theme;
 use minimap_bench::services::{BenchInputs, BenchTerrain, OverlayScenes};
 use minimap_bench::structs::BenchInput;
 use minimap_core::config::{Config, MiniMapConfig, TerrainConfig};
@@ -311,7 +311,7 @@ impl MinimapBenches {
         }
     }
 
-    // a levi-ui context like the manager's, with a 1x1 texture for each map texture id, so every image
+    // a amml-ui context like the manager's, with a 1x1 texture for each map texture id, so every image
     // the painters draw is tessellated as in the game
     fn layer_context(textures: &mut LayerTextures, ids: std::ops::Range<u32>) -> Context {
         let ctx = Context::default();

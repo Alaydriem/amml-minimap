@@ -28,7 +28,7 @@ impl BenchTerrain {
         ColumnSample::new(Rgba::new(60 + shade, 140, 50 + shade / 2, 255).packed(), 0, h, h, false, 0)
     }
 
-    // one chunk as the shim submits it
+    // one chunk as the column probe submits it
     pub fn probe(pos: ChunkPos) -> ChunkSurface {
         let mut surface = ChunkSurface::empty();
         for lz in 0..16 {
@@ -45,7 +45,7 @@ impl BenchTerrain {
         if x.rem_euclid(64) < 32 { 1 } else { 4 }
     }
 
-    // one chunk as the shim submits it, with the raw biome ID of every column
+    // one chunk as the column probe submits it, with the raw biome ID of every column
     pub fn probe_with_biomes(pos: ChunkPos) -> ChunkProbe {
         let mut ids = [0u16; 256];
         for lz in 0..16 {

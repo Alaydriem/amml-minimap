@@ -4,9 +4,9 @@
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-use levi_i18n::message::Message;
-use levi_i18n_tool::error::ToolError;
-use levi_i18n_tool::pot::PotWriter;
+use amml_i18n::message::Message;
+use amml_i18n_tool::error::ToolError;
+use amml_i18n_tool::pot::PotWriter;
 use minimap_ui::message::MinimapMessage;
 
 struct MinimapI18nExtract;

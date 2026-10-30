@@ -1,11 +1,11 @@
+use amml_i18n::text::Text;
+use amml_ui::draw::{Corner, Draw, TextFit, TextStyle, TypeSize};
+use amml_ui::font::FontFace;
+use amml_ui::icon::{Icon, IconSize};
+use amml_ui::tokens::rule::Elevation;
+use amml_ui::tokens::{ColorToken, SpacingToken, color, spacing};
+use amml_ui::widget::{SectionHeader, Surface, SurfaceLevel};
 use egui::{Align2, Area, Context, Order, Rect, RichText, Sense, Ui, pos2, vec2};
-use levi_i18n::text::Text;
-use levi_ui::draw::{Corner, Draw, TextFit, TextStyle, TypeSize};
-use levi_ui::font::FontFace;
-use levi_ui::icon::{Icon, IconSize};
-use levi_ui::tokens::rule::Elevation;
-use levi_ui::tokens::{ColorToken, SpacingToken, color, spacing};
-use levi_ui::widget::{SectionHeader, Surface, SurfaceLevel};
 use minimap_core::services::draw::OverlayGate;
 use minimap_core::services::ui::DimensionName;
 use minimap_core::structs::ui::{MapAction, UiFrame};

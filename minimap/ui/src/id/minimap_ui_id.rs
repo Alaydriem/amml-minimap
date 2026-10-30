@@ -1,7 +1,7 @@
 use std::hash::{Hash, Hasher};
 
+use amml_ui::id::IdScope;
 use egui::Id;
-use levi_ui::id::IdScope;
 
 /// The egui ids of the minimap's world map views.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

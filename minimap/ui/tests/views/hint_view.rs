@@ -1,4 +1,4 @@
-use levi_i18n::localize::Localizer;
+use amml_i18n::localize::Localizer;
 use minimap_core::structs::ui::HintKeys;
 use minimap_ui::runtime::LayerPainter;
 use minimap_ui::views::HintView;

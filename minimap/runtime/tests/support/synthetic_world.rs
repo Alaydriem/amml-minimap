@@ -15,7 +15,7 @@ use minimap_ui::testing::{HarnessEvent, HarnessInput, PassOutput, UiHarness};
 use crate::support::Painted;
 use minimap_store::structs::WorldIdentity;
 
-// a deterministic hilly world that answers probes the way the shim does
+// a deterministic hilly world that answers probes the way the host does
 pub struct SyntheticWorld {
     pub dir: tempfile::TempDir,
     // the config the next runtime starts with, and the texture grant the manager gives it
@@ -34,7 +34,7 @@ pub struct SyntheticWorld {
     pub display: (f32, f32),
     pub foreground: bool,
     pub player: PlayerSnapshot,
-    // answer the plan's biome name requests the way the shim does
+    // answer the plan's biome name requests the way the host does
     pub answer_biomes: bool,
 }
 

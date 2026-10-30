@@ -10,7 +10,7 @@ use minimap_runtime::structs::{CaptureEvent, CaptureHeader, CaptureReport, Submi
 
 use crate::services::BenchTerrain;
 
-// writes a capture of a scripted walk over BenchTerrain, the way the shim would have recorded it:
+// writes a capture of a scripted walk over BenchTerrain, the way the game side would have recorded it:
 // ticks, probes of the chunks around the player, the world map opened and closed, and a dimension change
 pub struct SyntheticCapture;
 

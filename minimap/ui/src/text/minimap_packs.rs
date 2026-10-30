@@ -1,4 +1,4 @@
-use levi_i18n::service::PackSource;
+use amml_i18n::service::PackSource;
 
 /// The compiled language packs of `MinimapMessage`, built into the minimap DLL. Each file in `i18n/packs/` is
 /// listed here; a test fails when one is missing.

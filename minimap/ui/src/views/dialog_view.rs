@@ -1,18 +1,18 @@
-use egui::text::{LayoutJob, TextFormat};
-use egui::{Align, Align2, Area, Color32, Context, Key, LayerId, Layout, Order, Sense, Stroke, Ui, pos2, vec2};
-use levi_i18n::localize::Localizer;
-use levi_i18n::text::{Text, UserText};
-use levi_ui::LeviUiMessage;
-use levi_ui::draw::{TextStyle, TypeSize};
-use levi_ui::font::FontFace;
-use levi_ui::icon::Icon;
-use levi_ui::text::UiLocale;
-use levi_ui::tokens::rule::Elevation;
-use levi_ui::tokens::selector::AxisColor;
-use levi_ui::tokens::{ColorToken, ContainerToken, SpacingToken, color, container, spacing};
-use levi_ui::widget::{
+use amml_i18n::localize::Localizer;
+use amml_i18n::text::{Text, UserText};
+use amml_ui::LeviUiMessage;
+use amml_ui::draw::{TextStyle, TypeSize};
+use amml_ui::font::FontFace;
+use amml_ui::icon::Icon;
+use amml_ui::text::UiLocale;
+use amml_ui::tokens::rule::Elevation;
+use amml_ui::tokens::selector::AxisColor;
+use amml_ui::tokens::{ColorToken, ContainerToken, SpacingToken, color, container, spacing};
+use amml_ui::widget::{
     ButtonKind, IconButton, IconButtonSize, SectionHeader, Surface, SurfaceLevel, TextButton, TextField, TextFieldKind,
 };
+use egui::text::{LayoutJob, TextFormat};
+use egui::{Align, Align2, Area, Color32, Context, Key, LayerId, Layout, Order, Sense, Stroke, Ui, pos2, vec2};
 use minimap_core::services::waypoints::WaypointStore;
 use minimap_core::structs::ui::{DialogTarget, MapAction, WaypointDialog};
 

@@ -46,7 +46,7 @@ impl CaptureReader {
         CaptureCodec::decode(head[0], &self.payload).map(Some)
     }
 
-    // rewrites the capture without compression, for readers that have no zstd (the C++ e2e harness)
+    // rewrites the capture without compression, for readers that have no zstd
     pub fn unpack_to(mut self, path: &Path) -> Result<u64, CaptureError> {
         let mut out = BufWriter::new(File::create(path)?);
         CaptureCodec::write_header(&mut out, &self.header, CaptureCodec::RAW)?;
