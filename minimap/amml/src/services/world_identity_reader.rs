@@ -11,8 +11,8 @@ use crate::game::{DbStorage, GameConnectionInfo, Level};
 use crate::services::ProcessProbe;
 
 // names the world the player entered, which keys its cache. The connection info is read first: a remote
-// connection is a server, whatever storage is seen. A local world keeps the folder the LeviLamina build
-// used, `<world>/ll_data/alaydriem-minimap`, so its old cache loads; a server is named by host, port and seed; a
+// connection is a server, whatever storage is seen. A local world is cached under
+// `<world>/@alaydriem/minimap/data`; an old LeviLamina cache is not read. A server is named by host, port and seed; a
 // world with neither (the world folder feature is off, or no storage was seen) is `local/S<seed>` under the data
 // folder. Without a seed such a world cannot be told from another, so it gets a folder of its own for this entry
 // only, `local/unseeded-<process>-<n>`, which a later start removes once that process has ended
@@ -24,8 +24,9 @@ pub struct WorldIdentityReader {
 }
 
 impl WorldIdentityReader {
-    pub const MOD_FOLDER: &'static str = "alaydriem-minimap";
-    pub const LL_DATA: &'static str = "ll_data";
+    pub const NAMESPACE_FOLDER: &'static str = "@alaydriem";
+    pub const MOD_FOLDER: &'static str = "minimap";
+    pub const DATA_FOLDER: &'static str = "data";
     pub const LOCAL: &'static str = "local";
     pub const UNSEEDED_PREFIX: &'static str = "unseeded-";
 
@@ -58,7 +59,10 @@ impl WorldIdentityReader {
         let storage = storage.and_then(|storage| unsafe { DbStorage::from_raw(storage.as_ptr(), entries) });
         if let Some(folder) = storage.and_then(|storage| storage.full_path()).filter(|folder| !folder.is_empty()) {
             return WorldIdentity::Local {
-                world_dir: PathBuf::from(folder).join(Self::LL_DATA).join(Self::MOD_FOLDER),
+                world_dir: PathBuf::from(folder)
+                    .join(Self::NAMESPACE_FOLDER)
+                    .join(Self::MOD_FOLDER)
+                    .join(Self::DATA_FOLDER),
             };
         }
         let folder = match known_seed {

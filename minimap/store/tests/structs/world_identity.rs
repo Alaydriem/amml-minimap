@@ -2,11 +2,11 @@ use std::path::PathBuf;
 
 use minimap_store::structs::WorldIdentity;
 
-// a game world folder holding the mod's data folder, as LeviLamina lays it out
+// a game world folder holding the mod's data folder, as the AMML loader lays it out: <world>/@namespace/name/data
 fn world_with_mod_data(level_name: Option<&str>) -> (tempfile::TempDir, WorldIdentity) {
     let dir = tempfile::tempdir().unwrap();
     let world = dir.path().join("XuODV9RMt48=");
-    let mod_data = world.join("ll_data").join("Some Mod");
+    let mod_data = world.join("@some").join("mod").join("data");
     std::fs::create_dir_all(&mod_data).unwrap();
     if let Some(name) = level_name {
         std::fs::write(world.join(WorldIdentity::LEVEL_NAME_FILE), name).unwrap();

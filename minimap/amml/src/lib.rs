@@ -1,4 +1,4 @@
-//! alaydriem-minimap as an AMML mod: hooks the client update and the world storage, reads the loaded chunks
+//! @alaydriem/minimap as an AMML mod: hooks the client update and the world storage, reads the loaded chunks
 //! around the player, and drives minimap-runtime with them.
 
 #![deny(unsafe_code)]

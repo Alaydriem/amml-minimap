@@ -10,7 +10,7 @@ pub struct Tools;
 impl Tools {
     pub const CAPTURE_PROCEDURE: &'static str = "Recording a probe capture (nothing runs from this task):
   1. In the mod manager's panel, on the Minimap page, turn on Debug > Capture probes. Or close the game
-     and set debug { capture_probes = true } in mods/alaydriem-minimap/config/config.hcl.
+     and set debug { capture_probes = true } in mods/amml/@alaydriem/minimap/config/config.hcl.
   2. Start the game and load the world to record. Play the route: walk and fly over water and
      hills, open the world map (M), pan and zoom it, close it. For a nether capture, go through a portal.
   3. Leave the world and close the game, so the capture file is closed cleanly.

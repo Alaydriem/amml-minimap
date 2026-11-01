@@ -61,7 +61,7 @@ fn leaving_and_entering_again_loads_the_map_from_disk_without_any_probe() {
     let runtime = world.runtime();
     world.run_until(&runtime, 2000, |rt, _| rt.stats().bakes_completed > 4);
     runtime.leave_world();
-    assert!(SyntheticWorld::exists(&world.world_dir().join("levi_minimap_cache")));
+    assert!(SyntheticWorld::exists(&world.world_dir().join("minimap_cache")));
 
     runtime.enter_world(&world.identity(), 0).unwrap();
     bind(&runtime, KeybindAction::ToggleWorldMap, true);

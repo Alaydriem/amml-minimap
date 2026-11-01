@@ -30,8 +30,7 @@ impl BakePool {
         let mut workers = Vec::with_capacity(threads);
         for i in 0..threads {
             let worker = BakeWorker::new(Arc::clone(&shared), job_rx.clone(), result_tx.clone(), Arc::clone(&stop));
-            workers
-                .push(std::thread::Builder::new().name(format!("levi-minimap-bake-{i}")).spawn(move || worker.run())?);
+            workers.push(std::thread::Builder::new().name(format!("minimap-bake-{i}")).spawn(move || worker.run())?);
         }
         Ok(Self { jobs: Some(job_tx), results: result_rx, workers, stop })
     }

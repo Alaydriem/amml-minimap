@@ -1,6 +1,6 @@
 use amml_i18n::localize::Localizer;
 use amml_i18n::text::{Text, UserText};
-use amml_ui::LeviUiMessage;
+use amml_ui::AmmlUiMessage;
 use amml_ui::draw::{TextStyle, TypeSize};
 use amml_ui::font::FontFace;
 use amml_ui::icon::Icon;
@@ -104,7 +104,7 @@ impl DialogView {
 
     fn title(ui: &mut Ui, dialog: &WaypointDialog, actions: &mut Vec<MapAction>) {
         let close =
-            IconButton::new(Icon::Close).size(IconButtonSize::Small).tooltip(Text::message(LeviUiMessage::Close));
+            IconButton::new(Icon::Close).size(IconButtonSize::Small).tooltip(Text::message(AmmlUiMessage::Close));
         let (closed, ()) = SplitRow::show(
             ui,
             |ui| close.show(ui).clicked(),
@@ -179,7 +179,7 @@ impl DialogView {
             if TextButton::new(ButtonKind::Primary, Text::message(MinimapMessage::Save)).show(ui).clicked() {
                 actions.push(MapAction::SaveDialog);
             }
-            if TextButton::new(ButtonKind::Outline, Text::message(LeviUiMessage::Cancel)).show(ui).clicked() {
+            if TextButton::new(ButtonKind::Outline, Text::message(AmmlUiMessage::Cancel)).show(ui).clicked() {
                 actions.push(MapAction::CancelDialog);
             }
         });

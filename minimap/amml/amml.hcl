@@ -1,6 +1,7 @@
-name        = "alaydriem-minimap"
+namespace   = "alaydriem"
+name        = "minimap"
 entry       = "alaydriem_minimap.dll"
-api_version = 1
+api_version = 2
 entries = [
   # required: the minimap refuses to enable without them
   "ClientInstance.update",

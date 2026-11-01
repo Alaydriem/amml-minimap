@@ -91,7 +91,7 @@ impl ManagerPort for FakePort {
 
     fn holder(&self, capability: Capability) -> Option<String> {
         self.push(PortCall::Holder(capability));
-        Some("alaydriem-demo-b".to_string())
+        Some("@alaydriem/demo-b".to_string())
     }
 
     fn texture_budget_grant(&self) -> TextureGrant {

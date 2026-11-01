@@ -58,7 +58,7 @@ fn a_cave_band_is_saved_in_its_own_layer_folder() {
     assert!(world.run_until(&runtime, 2000, |rt, _| rt.stats().bakes_completed > 4));
     runtime.leave_world();
     runtime.shutdown();
-    let cache = world.world_dir().join("levi_minimap_cache");
+    let cache = world.world_dir().join("minimap_cache");
     let layer = LayerIds::cave(0, 5).to_string();
     assert!(cache.join("regions").join(&layer).exists() || cache.join("journal").join(&layer).exists());
     assert!(!cache.join("regions").join("0").exists());

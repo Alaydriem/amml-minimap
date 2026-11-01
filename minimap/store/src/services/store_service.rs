@@ -30,7 +30,7 @@ impl StoreService {
         let worker_stop = Arc::clone(&stop);
         let written = Arc::new(AtomicU64::new(0));
         let worker_written = Arc::clone(&written);
-        let worker = std::thread::Builder::new().name("levi-minimap-store".to_string()).spawn(move || {
+        let worker = std::thread::Builder::new().name("minimap-store".to_string()).spawn(move || {
             StoreWorker::new(root, settings, command_rx, event_tx, worker_stop, worker_written).run();
             let _ = done_tx.send(());
         })?;

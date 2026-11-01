@@ -31,17 +31,17 @@ minimap-ui = { path = "minimap/ui" }
 minimap-link = { path = "minimap/link" }
 hcl-rs = "=0.19.8"
 curia = "=0.2.2"
-amm-abi = { path = "../modmanager-amml/crates/amm-abi" }
-amm-client = { path = "../modmanager-amml/crates/amm-client" }
-amm-core = { path = "../modmanager-amml/crates/amm-core" }
-amm-ffi = { path = "../modmanager-amml/crates/amm-ffi" }
-amml-ui = { path = "../amml/ui/kit" }
-amml-i18n = { path = "../amml/i18n/runtime" }
-amml-i18n-tool = { path = "../amml/i18n/tool" }
-amml-ui-rules = { path = "../amml/ui/rules" }
-amml-sdk = { path = "../amml/sdk/sdk" }
-amml-game = { path = "../amml/sdk/game" }
-amml-msvc = { path = "../amml/sdk/msvc" }
+amm-abi = { git = "https://github.com/Alaydriem/amml-modmanager.git", tag = "26.60.0" }
+amm-client = { git = "https://github.com/Alaydriem/amml-modmanager.git", tag = "26.60.0" }
+amm-core = { git = "https://github.com/Alaydriem/amml-modmanager.git", tag = "26.60.0" }
+amm-ffi = { git = "https://github.com/Alaydriem/amml-modmanager.git", tag = "26.60.0" }
+amml-ui = { git = "https://github.com/Alaydriem/amml.git", tag = "26.60.0" }
+amml-i18n = { git = "https://github.com/Alaydriem/amml.git", tag = "26.60.0" }
+amml-i18n-tool = { git = "https://github.com/Alaydriem/amml.git", tag = "26.60.0" }
+amml-ui-rules = { git = "https://github.com/Alaydriem/amml.git", tag = "26.60.0" }
+amml-sdk = { git = "https://github.com/Alaydriem/amml.git", tag = "26.60.0" }
+amml-game = { git = "https://github.com/Alaydriem/amml.git", tag = "26.60.0" }
+amml-msvc = { git = "https://github.com/Alaydriem/amml.git", tag = "26.60.0" }
 windows-sys = "0.61.2"
 
 [workspace.lints.clippy]

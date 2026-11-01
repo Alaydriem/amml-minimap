@@ -3,6 +3,7 @@ use std::collections::BTreeSet;
 use alaydriem_minimap::MinimapMod;
 use alaydriem_minimap::types::{MinimapEntry, MinimapFeature};
 use amml_game::{EntryId, GameError, MaterialLayout};
+use amml_sdk::AmmlMod;
 
 use crate::support::{FakeResolver, FakeWorld};
 
@@ -91,4 +92,12 @@ fn an_unknown_or_missing_material_layout_refuses_the_enable() {
 
         assert!(matches!(result, Err(GameError::EntrySet { .. })), "{material:?}");
     }
+}
+
+#[test]
+fn the_mod_id_is_the_namespaced_module_string() {
+    assert_eq!(MinimapMod::NAMESPACE, "alaydriem");
+    assert_eq!(MinimapMod::NAME, "minimap");
+    assert_eq!(MinimapMod::id(), MinimapMod::MODULE);
+    assert_eq!(MinimapMod::MODULE, "@alaydriem/minimap");
 }

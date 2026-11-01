@@ -8,7 +8,9 @@ use crate::structs::WorldIdentity;
 pub struct CachePaths;
 
 impl CachePaths {
-    pub const FOLDER: &'static str = "levi_minimap_cache";
+    pub const FOLDER: &'static str = "minimap_cache";
+    // the folder name of caches written before the rename; `adopt_legacy` moves such a folder to `FOLDER`
+    pub const LEGACY_FOLDER: &'static str = "levi_minimap_cache";
 
     pub fn root(identity: &WorldIdentity, mod_data_dir: &Path) -> PathBuf {
         match identity {
@@ -24,6 +26,20 @@ impl CachePaths {
     pub fn waypoints_file(identity: &WorldIdentity, mod_data_dir: &Path) -> PathBuf {
         let root = Self::root(identity, mod_data_dir);
         root.parent().unwrap_or(mod_data_dir).join(WaypointFile::NAME)
+    }
+
+    // moves a cache folder with the old name, beside `root`, to `root`, so the map a player already explored is
+    // kept. Nothing moves when `root` exists or no old folder is there. Gives whether a folder moved
+    pub fn adopt_legacy(root: &Path) -> std::io::Result<bool> {
+        if root.exists() {
+            return Ok(false);
+        }
+        let Some(legacy) = root.parent().map(|parent| parent.join(Self::LEGACY_FOLDER)) else { return Ok(false) };
+        if !legacy.is_dir() {
+            return Ok(false);
+        }
+        std::fs::rename(&legacy, root)?;
+        Ok(true)
     }
 
     pub fn region_file(root: &Path, region: RegionPos) -> PathBuf {

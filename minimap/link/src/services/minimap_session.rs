@@ -28,7 +28,7 @@ pub struct MinimapSession<P: ManagerPort, C: ClipboardSink> {
 
 impl MinimapSession<ManagerLink, SystemClipboard> {
     // registers with the manager, reads the config it checked and the texture budget it granted, then starts
-    // the runtime; `config_dir` is the mod's LeviLamina config folder, an absolute path
+    // the runtime; `config_dir` is the mod's AMML config folder, an absolute path
     pub fn connect(config_dir: &Path, paths: RuntimePaths) -> Result<Self, SessionError> {
         Self::connect_with(ApiTable::resolve()?, config_dir, paths)
     }
@@ -42,7 +42,7 @@ impl MinimapSession<ManagerLink, SystemClipboard> {
         let grant = link.texture_budget_grant();
         let runtime = Arc::new(Runtime::new(config, paths, grant)?);
         let _ = slot.set(Arc::clone(&runtime));
-        curia::info!("levi-minimap registered", { texture_mb: grant.bytes / (1024 * 1024), textures: grant.count });
+        curia::info!("@alaydriem/minimap registered", { texture_mb: grant.bytes / (1024 * 1024), textures: grant.count });
         Ok(Self::with_port(link, runtime, SystemClipboard))
     }
 }

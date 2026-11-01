@@ -1,13 +1,13 @@
 <div align="center">
 
-<img src="./assets/readme.png" alt="Mini Map" width="256">
+<img src="./assets/icon.png" alt="Mini Map" width="256">
 
 # Alaydriem's Mini Map
 
-[![Release](https://img.shields.io/github/v/release/alaydriem/levi-minimap?include_prereleases)](https://github.com/alaydriem/levi-minimap/releases)
-[![Build](https://img.shields.io/github/actions/workflow/status/alaydriem/levi-minimap/build.yml?branch=master&label=build)](https://github.com/alaydriem/levi-minimap/actions/workflows/build.yml)
-[![License](https://img.shields.io/github/license/alaydriem/levi-minimap)](./LICENSE)
-![Minecraft Bedrock](https://img.shields.io/badge/Minecraft_Bedrock-1.26.51-62B47A)
+[![Release](https://img.shields.io/github/v/release/alaydriem/minimap?include_prereleases)](https://github.com/alaydriem/minimap/releases)
+[![Build](https://img.shields.io/github/actions/workflow/status/alaydriem/minimap/build.yml?branch=master&label=build)](https://github.com/alaydriem/minimap/actions/workflows/build.yml)
+[![License](https://img.shields.io/github/license/alaydriem/minimap)](./LICENSE)
+![Minecraft Bedrock](https://img.shields.io/badge/Minecraft_Bedrock-1.26.51%2C%201.26.60-62B47A)
 [![AMML](https://img.shields.io/badge/AMML-mod-4A90D9)](https://github.com/alaydriem/amml)
 
 </div>
@@ -48,11 +48,11 @@ Client-side only. The map is built from the chunks your game has already loaded.
 Requires:
 
 - the **AMML loader** (0.1.0 or later), which loads the mod into the game. The loader also carries the recipes that
-  find the game addresses the minimap uses (`recipes/game` and `recipes/minimap`). An older loader does not have
+  find the game addresses the minimap uses (in its `recipes/`). An older loader does not have
   them: it logs "required entry ... did not resolve" and the minimap stays off. Update the loader first.
 - [Alaydriem's Mod Manager](https://github.com/alaydriem/modmanager), installed as an AMML mod.
 
-Download the zip from the [latest release](https://github.com/alaydriem/levi-minimap/releases/latest) and extract it.
+Download the zip from the [latest release](https://github.com/alaydriem/minimap/releases/latest) and extract it.
 It holds one folder, `alaydriem-minimap`, with `alaydriem_minimap.dll`, `amml.hcl` and `OFL.txt`. Put that folder in
 the AMML mods folder of the game, so that the files are in `mods/amml/alaydriem-minimap/`. Then enable the mod in the
 mod manager.
@@ -66,10 +66,10 @@ mod manager.
 | Key | Action |
 | --- | --- |
 | <kbd>M</kbd> | Open / close the world map |
-| <kbd>Ctrl</kbd> + <kbd>M</kbd> | Show / hide the minimap |
+| <kbd>F3</kbd> + <kbd>M</kbd> | Show / hide the minimap |
 | <kbd>=</kbd> / <kbd>-</kbd> | Zoom the minimap |
 | <kbd>N</kbd> | Add a waypoint at your position |
-| <kbd>K</kbd> | Cave mode on / off |
+| <kbd>F3</kbd> + <kbd>K</kbd> | Cave mode on / off |
 | <kbd>Ctrl</kbd> + <kbd>K</kbd> | Show / hide coordinates |
 | <kbd>Esc</kbd> | Close the world map, menu or dialog |
 | Mouse wheel | Zoom the world map |

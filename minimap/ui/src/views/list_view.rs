@@ -1,5 +1,5 @@
 use amml_i18n::text::{Args, Text};
-use amml_ui::LeviUiMessage;
+use amml_ui::AmmlUiMessage;
 use amml_ui::draw::{Corner, Draw, TextFit, TextStyle, TypeSize};
 use amml_ui::font::FontFace;
 use amml_ui::icon::Icon;
@@ -58,7 +58,7 @@ impl ListView {
 
     fn header(ui: &mut Ui, count: usize, actions: &mut Vec<MapAction>) {
         let close =
-            IconButton::new(Icon::Close).size(IconButtonSize::Small).tooltip(Text::message(LeviUiMessage::Close));
+            IconButton::new(Icon::Close).size(IconButtonSize::Small).tooltip(Text::message(AmmlUiMessage::Close));
         let (closed, ()) = SplitRow::show(
             ui,
             |ui| close.show(ui).clicked(),

@@ -33,24 +33,26 @@ run = "cargo run -q -p minimap-ui --example minimap_i18n_extract -- --check"
 [tasks."i18n:pseudo"]
 description = "Writes the en_XA pseudo-locale pack of minimap.pot into minimap/ui/i18n/packs/en_XA.json"
 dir = "{{config_root}}"
+shell = "bash -c"
 run = [
-  "cargo install -q --locked --path ../amml/i18n/tool",
-  "amml-i18n-tool pseudo minimap/ui/i18n/minimap.pot minimap/ui/i18n/packs/en_XA.json",
+  "bash scripts/amml-i18n-tool.sh pseudo minimap/ui/i18n/minimap.pot minimap/ui/i18n/packs/en_XA.json",
 ]
 
 [tasks.package]
-description = "Builds the AMML mod into dist/alaydriem-minimap (alaydriem_minimap.dll, amml.hcl and the font licence OFL.txt)"
+description = "Builds the AMML mod into dist/@alaydriem/minimap (alaydriem_minimap.dll, amml.hcl and the font licence OFL.txt)"
 dir = "{{config_root}}"
 shell = "bash -c"
 run = '''
 set -e
 cargo build --release -p minimap-amml
-mkdir -p dist/alaydriem-minimap
-cp target/release/alaydriem_minimap.dll dist/alaydriem-minimap/alaydriem_minimap.dll
-cp minimap/amml/amml.hcl dist/alaydriem-minimap/amml.hcl
+rm -rf dist/alaydriem-minimap dist/@alaydriem/minimap
+mkdir -p dist/@alaydriem/minimap
+cp target/release/alaydriem_minimap.dll dist/@alaydriem/minimap/alaydriem_minimap.dll
+cp minimap/amml/amml.hcl dist/@alaydriem/minimap/amml.hcl
 # the DLL embeds the NordwandMono font from amml-ui; its licence ships beside it
-cp ../amml/ui/kit/assets/fonts/OFL.txt dist/alaydriem-minimap/OFL.txt
-echo "built dist/alaydriem-minimap"
+ui_manifest=$(cargo metadata --format-version 1 --locked | jq -r '.packages[] | select(.name == "amml-ui") | .manifest_path')
+cp "$(dirname "$ui_manifest")/assets/fonts/OFL.txt" dist/@alaydriem/minimap/OFL.txt
+echo "built dist/@alaydriem/minimap"
 '''
 
 [tasks.e2e]
@@ -91,3 +93,7 @@ run = "cargo run -q --release -p minimap-bench --bin footprint"
 description = "Prints the in-game procedure for recording a new probe capture. Runs nothing"
 dir = "{{config_root}}"
 run = "cargo run -q --release -p minimap-bench --bin capture-tool -- procedure"
+
+[tools]
+# cargo metadata is read with it, to find the amml sources cargo fetched
+jq = "1.8.1"

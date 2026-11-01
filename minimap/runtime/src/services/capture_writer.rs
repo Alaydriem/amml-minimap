@@ -35,7 +35,7 @@ impl CaptureWriter {
         let state = Arc::new((AtomicBool::new(false), AtomicU64::new(0)));
         let thread_state = Arc::clone(&state);
         let thread = std::thread::Builder::new()
-            .name("levi-minimap-capture".into())
+            .name("minimap-capture".into())
             .spawn(move || Self::run(&rx, &thread_state, encoder))?;
         Ok(Self { sink: CaptureSink::new(tx, Arc::clone(&state)), state, thread: Some(thread) })
     }

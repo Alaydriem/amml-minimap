@@ -50,7 +50,7 @@ impl ExportService {
         let busy = Arc::new(AtomicBool::new(false));
         let epoch = Arc::new(AtomicU64::new(0));
         let worker = ExportWorker::new(shared, job_rx, result_tx, Arc::clone(&busy), Arc::clone(&epoch));
-        let handle = std::thread::Builder::new().name("levi-minimap-export".to_string()).spawn(move || worker.run())?;
+        let handle = std::thread::Builder::new().name("minimap-export".to_string()).spawn(move || worker.run())?;
         Ok(Self {
             dir: dir.to_path_buf(),
             jobs: Mutex::new(Some(job_tx)),

@@ -28,11 +28,12 @@ impl WorldIdentity {
         }
     }
 
-    // the mod's data for a world is <world>/ll_data/<mod name>; the world folder is two levels up
+    // the mod's data for a world is <world>/@<namespace>/<name>/data; the world folder is three levels up
     fn world_folder(world_dir: &Path) -> &Path {
-        match world_dir.parent() {
-            Some(ll_data) if ll_data.file_name().is_some_and(|n| n == "ll_data") => {
-                ll_data.parent().unwrap_or(world_dir)
+        let namespace = world_dir.parent().and_then(Path::parent);
+        match namespace {
+            Some(namespace) if namespace.file_name().is_some_and(|n| n.to_string_lossy().starts_with('@')) => {
+                namespace.parent().unwrap_or(world_dir)
             }
             _ => world_dir,
         }

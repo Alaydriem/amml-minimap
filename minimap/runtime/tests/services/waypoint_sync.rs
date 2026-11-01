@@ -107,7 +107,7 @@ fn waypoints_are_saved_with_the_disk_cache_off() {
     runtime.leave_world();
     runtime.shutdown();
     assert!(world.world_dir().join(WaypointFile::NAME).exists());
-    assert!(!world.world_dir().join("levi_minimap_cache").exists());
+    assert!(!world.world_dir().join("minimap_cache").exists());
 }
 
 #[test]

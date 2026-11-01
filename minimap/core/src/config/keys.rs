@@ -17,11 +17,11 @@ impl Default for KeysConfig {
     fn default() -> Self {
         Self {
             toggle_world_map: "M".to_string(),
-            toggle_minimap: "Ctrl+M".to_string(),
+            toggle_minimap: "F3+M".to_string(),
             zoom_in: "Equals".to_string(),
             zoom_out: "Minus".to_string(),
             add_waypoint: "N".to_string(),
-            toggle_cave: "K".to_string(),
+            toggle_cave: "F3+K".to_string(),
             toggle_coordinates: "Ctrl+K".to_string(),
         }
     }

@@ -6,14 +6,7 @@ on:
   pull_request:
     branches: [master]
 
-# ASSUMPTIONS to confirm before the first push: the two sibling repos below are not public yet.
-# The workspace depends on them by relative path (../amml, ../modmanager-amml), so minimap is
-# checked out into a subfolder and the siblings next to it. SIBLING_REPOS_TOKEN must be a secret
-# with read access to both repos.
 env:
-  AMML_REPO: alaydriem/amml
-  MODMANAGER_REPO: alaydriem/modmanager
-  MODMANAGER_REF: amml-port
   MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}/minimap
 
 defaults:
@@ -21,25 +14,12 @@ defaults:
     working-directory: minimap
 
 jobs:
-  rust:
+  build:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
         with:
           path: minimap
-
-      - uses: actions/checkout@v7
-        with:
-          repository: ${{ env.AMML_REPO }}
-          token: ${{ secrets.SIBLING_REPOS_TOKEN }}
-          path: amml
-
-      - uses: actions/checkout@v7
-        with:
-          repository: ${{ env.MODMANAGER_REPO }}
-          ref: ${{ env.MODMANAGER_REF }}
-          token: ${{ secrets.SIBLING_REPOS_TOKEN }}
-          path: modmanager-amml
 
       - uses: jdx/mise-action@v2
         with:
@@ -59,62 +39,9 @@ jobs:
 
       - run: mise run check
       - run: mise run test
-
-  changes:
-    runs-on: ubuntu-latest
-    outputs:
-      mod: ${{ steps.filter.outputs.mod }}
-    steps:
-      - uses: actions/checkout@v7
-      - id: filter
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            mod:
-              - 'minimap/**'
-              - 'Cargo.toml'
-              - 'Cargo.lock'
-              - 'mise.toml'
-
-  package:
-    needs: [rust, changes]
-    if: needs.changes.outputs.mod == 'true'
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          path: minimap
-
-      - uses: actions/checkout@v7
-        with:
-          repository: ${{ env.AMML_REPO }}
-          token: ${{ secrets.SIBLING_REPOS_TOKEN }}
-          path: amml
-
-      - uses: actions/checkout@v7
-        with:
-          repository: ${{ env.MODMANAGER_REPO }}
-          ref: ${{ env.MODMANAGER_REF }}
-          token: ${{ secrets.SIBLING_REPOS_TOKEN }}
-          path: modmanager-amml
-
-      - uses: jdx/mise-action@v2
-        with:
-          working_directory: minimap
-
-      - uses: actions/cache@v6
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            minimap/target
-          key: cargo-release-${{ hashFiles('minimap/Cargo.lock', 'minimap/rust-toolchain.toml') }}
-          restore-keys: |
-            cargo-release-
-
       - run: mise run package
 
       - uses: actions/upload-artifact@v7
         with:
           name: alaydriem-minimap-${{ github.sha }}-windows-x64
-          path: minimap/dist/alaydriem-minimap/
+          path: minimap/dist/@alaydriem/minimap/

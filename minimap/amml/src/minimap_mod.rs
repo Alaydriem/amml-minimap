@@ -14,6 +14,8 @@ use crate::types::{MinimapEntry, MinimapFeature};
 pub struct MinimapMod;
 
 impl MinimapMod {
+    // the mod id as a static string for the host and logger; a test checks it equals AmmlMod::id()
+    pub const MODULE: &'static str = "@alaydriem/minimap";
     // the entries the minimap cannot run without: the client, the player's pose, dimension and block source, and
     // the chunk reads
     pub const REQUIRED: [EntryId; 19] = [
@@ -108,7 +110,7 @@ impl MinimapMod {
     fn remove_hooks(api: &Api, runtime: &MinimapRuntime) {
         for hook in runtime.take_hooks() {
             if let Err(error) = api.unhook(hook) {
-                api.log(Self::NAME, AmmlLogLevel::WARN, &format!("unhook failed: {error}"));
+                api.log(Self::MODULE, AmmlLogLevel::WARN, &format!("unhook failed: {error}"));
             }
         }
     }
@@ -143,7 +145,7 @@ impl MinimapMod {
         });
         if let Err(error) = installed {
             api.log(
-                Self::NAME,
+                Self::MODULE,
                 AmmlLogLevel::WARN,
                 &format!("{} is off (the storage hooks: {error})", MinimapFeature::WORLD_FOLDER),
             );
@@ -153,11 +155,12 @@ impl MinimapMod {
 }
 
 impl AmmlMod for MinimapMod {
-    const NAME: &'static str = "alaydriem-minimap";
+    const NAMESPACE: &'static str = "alaydriem";
+    const NAME: &'static str = "minimap";
 
     // runs under the loader lock: only the folders are noted, nothing starts a thread
     fn load(api: &Api) -> Result<(), SdkError> {
-        let dirs = ModDirs::new(api, Self::NAME)?;
+        let dirs = ModDirs::new(api, Self::MODULE)?;
         MinimapRuntime::install(&dirs.config_dir, &dirs.data_dir);
         Ok(())
     }
@@ -167,10 +170,10 @@ impl AmmlMod for MinimapMod {
         let entries = Self::resolve(api).map_err(|error| SdkError::Mod(error.to_string()))?;
         let off = Self::off_lines(&entries);
         if off.is_empty() {
-            api.log(Self::NAME, AmmlLogLevel::INFO, "features off: none");
+            api.log(Self::MODULE, AmmlLogLevel::INFO, "features off: none");
         }
         for line in off {
-            api.log(Self::NAME, AmmlLogLevel::WARN, &line);
+            api.log(Self::MODULE, AmmlLogLevel::WARN, &line);
         }
         if let Err(error) = Self::install_hooks(api, runtime, &entries) {
             Self::remove_hooks(api, runtime);

@@ -18,7 +18,9 @@ fn parsed() -> Parsed {
 #[test]
 fn the_manager_checker_accepts_the_descriptor() {
     let descriptor = parsed();
-    assert_eq!(descriptor.id, "alaydriem-minimap");
+    assert_eq!(descriptor.namespace, "alaydriem");
+    assert_eq!(descriptor.name, "minimap");
+    assert_eq!(descriptor.id(), "@alaydriem/minimap");
     assert_eq!(descriptor.config_path, "config.hcl");
 }
 

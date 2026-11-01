@@ -94,13 +94,13 @@ fn read_with_storage(connection: Option<FakeConnection>) -> (WorldIdentity, Fake
 }
 
 #[test]
-fn the_storage_folder_names_a_local_world_where_the_levilamina_build_kept_its_cache() {
+fn a_local_world_caches_under_the_namespaced_data_folder() {
     let connection =
         FakeConnection { connection_type: 0, host: "a-local-host-name-longer-than-fifteen".into(), port: 1 };
 
     let (identity, world) = read_with_storage(Some(connection));
 
-    let folder = Path::new("C:/worlds/abc=").join("ll_data").join("alaydriem-minimap");
+    let folder = Path::new("C:/worlds/abc=").join("@alaydriem").join("minimap").join("data");
     assert_eq!(identity, WorldIdentity::Local { world_dir: folder });
     assert_ne!(world.client.host_block, 0, "the connection is read before the storage");
     assert_eq!(FakeHeap::frees_of(world.client.host_block), 1);
@@ -272,7 +272,7 @@ fn the_sweep_removes_only_the_caches_of_ended_processes() {
         "S5".to_string(),
     ];
     for folder in &folders {
-        std::fs::create_dir_all(local.join(folder).join("levi_minimap_cache")).unwrap();
+        std::fs::create_dir_all(local.join(folder).join("minimap_cache")).unwrap();
     }
 
     WorldIdentityReader::sweep_unseeded(dir.path());

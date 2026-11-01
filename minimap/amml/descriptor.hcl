@@ -1,4 +1,5 @@
-id           = "alaydriem-minimap"
+namespace    = "alaydriem"
+name         = "minimap"
 display_name = "Minimap"
 version      = "0.1.0"
 author       = "Alaydriem"
@@ -30,7 +31,7 @@ keybind "toggle_world_map" {
 }
 keybind "toggle_minimap" {
   label       = "Show or hide the corner map"
-  default     = "Ctrl+M"
+  default     = "F3+M"
   capability  = "Hud"
   scope       = "Global"
   config_path = "keys.toggle_minimap"
@@ -58,7 +59,7 @@ keybind "add_waypoint" {
 }
 keybind "toggle_cave" {
   label       = "Cave view on or off"
-  default     = "K"
+  default     = "F3+K"
   capability  = "Hud"
   scope       = "Global"
   config_path = "keys.toggle_cave"
@@ -612,7 +613,7 @@ section "keys" {
   field "keys.toggle_minimap" {
     label   = "Show or hide the corner map"
     kind    = "chord"
-    default = "Ctrl+M"
+    default = "F3+M"
     apply   = "Live"
   }
   field "keys.zoom_in" {
@@ -636,7 +637,7 @@ section "keys" {
   field "keys.toggle_cave" {
     label   = "Cave view on or off"
     kind    = "chord"
-    default = "K"
+    default = "F3+K"
     apply   = "Live"
   }
   field "keys.toggle_coordinates" {

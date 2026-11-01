@@ -1,4 +1,4 @@
-use amml_ui::id::LeviUiId;
+use amml_ui::id::AmmlUiId;
 use egui::Id;
 use minimap_ui::id::MinimapUiId;
 
@@ -13,8 +13,8 @@ enum OtherId {
 fn a_minimap_ui_id_never_equals_the_same_numbered_variant_of_another_enum() {
     assert_ne!(Id::unique(MinimapUiId::Map), Id::unique(OtherId::First));
     assert_ne!(Id::unique(MinimapUiId::Tools), Id::unique(OtherId::Second));
-    assert_ne!(Id::unique(MinimapUiId::Map), Id::unique(LeviUiId::Locale));
-    assert_ne!(Id::unique(MinimapUiId::Tools), Id::unique(LeviUiId::SegmentSlide));
+    assert_ne!(Id::unique(MinimapUiId::Map), Id::unique(AmmlUiId::Locale));
+    assert_ne!(Id::unique(MinimapUiId::Tools), Id::unique(AmmlUiId::SegmentSlide));
 }
 
 #[test]

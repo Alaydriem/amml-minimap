@@ -1,105 +1,35 @@
 name: Release
 
 on:
-  push:
-    tags: ['v*']
-  workflow_call:
+  workflow_dispatch:
     inputs:
-      tag:
-        description: 'Tag to build and attach assets to'
+      version:
+        description: Release version, semver from the Minecraft version (26.60.5)
         required: true
         type: string
+      amml_ref:
+        description: amml branch, tag or commit to build against; empty means the highest amml tag in this version's MAJOR.MINOR series
+        required: false
+        type: string
+        default: ""
+      modmanager_ref:
+        description: amml-modmanager branch, tag or commit to build against; empty means the highest amml-modmanager tag in this version's MAJOR.MINOR series
+        required: false
+        type: string
+        default: ""
 
-concurrency:
-  group: release-${{ inputs.tag || github.ref_name }}
-  cancel-in-progress: false
-
-# ASSUMPTIONS to confirm before the first push: see build.yml. The sibling repos are not public yet;
-# SIBLING_REPOS_TOKEN needs read access to both.
-env:
-  AMML_REPO: alaydriem/amml
-  MODMANAGER_REPO: alaydriem/modmanager
-  MODMANAGER_REF: amml-port
-  MISE_TRUSTED_CONFIG_PATHS: ${{ github.workspace }}/minimap
-  TAG: ${{ inputs.tag || github.ref_name }}
-
-defaults:
-  run:
-    working-directory: minimap
+permissions:
+  contents: write
 
 jobs:
   release:
-    runs-on: windows-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          ref: ${{ env.TAG }}
-          path: minimap
-
-      - uses: actions/checkout@v7
-        with:
-          repository: ${{ env.AMML_REPO }}
-          token: ${{ secrets.SIBLING_REPOS_TOKEN }}
-          path: amml
-
-      - uses: actions/checkout@v7
-        with:
-          repository: ${{ env.MODMANAGER_REPO }}
-          ref: ${{ env.MODMANAGER_REF }}
-          token: ${{ secrets.SIBLING_REPOS_TOKEN }}
-          path: modmanager-amml
-
-      - name: Check that every version matches the tag
-        shell: pwsh
-        run: |
-          $tag = $env:TAG.TrimStart('v')
-          $cargo = (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"' | Select-Object -First 1).Matches[0].Groups[1].Value
-          $descriptor = (Select-String -Path minimap/amml/descriptor.hcl -Pattern '^version\s*=\s*"([^"]+)"').Matches[0].Groups[1].Value
-          "tag=$tag Cargo.toml=$cargo descriptor.hcl=$descriptor"
-          if ($cargo -ne $tag -or $descriptor -ne $tag) {
-            Write-Error "versions do not match the tag $tag"
-            exit 1
-          }
-          "VERSION=$tag" | Out-File -FilePath $env:GITHUB_ENV -Append
-
-      - uses: jdx/mise-action@v2
-        with:
-          working_directory: minimap
-
-      - uses: taiki-e/install-action@nextest
-
-      - uses: actions/cache@v6
-        with:
-          path: |
-            ~/.cargo/registry
-            ~/.cargo/git
-            minimap/target
-          key: cargo-release-${{ hashFiles('minimap/Cargo.lock', 'minimap/rust-toolchain.toml') }}
-          restore-keys: |
-            cargo-release-
-
-      - run: mise run test
-
-      - run: mise run package
-
-      - name: Package
-        shell: pwsh
-        run: |
-          $mod = "dist/alaydriem-minimap"
-          $name = "alaydriem-minimap-$env:VERSION-windows-x64"
-          Copy-Item LICENSE "$mod/"
-          Compress-Archive -Path $mod -DestinationPath "dist/$name.zip"
-
-      - name: Publish the release
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          if gh release view "$TAG" > /dev/null 2>&1; then
-            gh release upload "$TAG" dist/*.zip --clobber
-          else
-            gh release create "$TAG"               --title "$TAG"               --generate-notes               dist/*.zip
-          fi
+    uses: alaydriem/amml/.github/workflows/release-mod.yml@master
+    with:
+      version: ${{ inputs.version }}
+      amml_ref: ${{ inputs.amml_ref }}
+      modmanager_ref: ${{ inputs.modmanager_ref }}
+      path: minimap
+      namespace: alaydriem
+      name: minimap
+      package_task: package
+      descriptor: minimap/amml/descriptor.hcl

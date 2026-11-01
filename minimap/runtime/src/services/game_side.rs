@@ -96,6 +96,15 @@ impl GameSide {
             self.waypoints.open(CachePaths::waypoints_file(identity, &self.paths.data_dir), &self.config_store);
         }
         let root = self.config.terrain.enable_disk_cache.then(|| CachePaths::root(identity, &self.paths.data_dir));
+        if let Some(root) = &root {
+            match CachePaths::adopt_legacy(root) {
+                Ok(true) => curia::info!("the map cache moved to its new folder name"),
+                Ok(false) => {}
+                Err(error) => {
+                    curia::warn!("the old map cache could not be moved; a new cache starts", { error: error.to_string() })
+                }
+            }
+        }
         self.exports.enter_world(&identity.label());
         self.layers.reset();
         self.shared.layer.store(dim, std::sync::atomic::Ordering::Relaxed);

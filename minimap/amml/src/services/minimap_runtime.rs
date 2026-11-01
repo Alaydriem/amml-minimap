@@ -207,10 +207,10 @@ impl MinimapRuntime {
         let Some(runtime) = ModRuntime::get() else { return };
         match error {
             SessionError::Link(LinkError::ManagerMissing | LinkError::AbiMismatch { .. }) => {
-                runtime.logger().error("alaydriem-minimap needs alaydriem-mod-manager; the minimap stays off");
+                runtime.logger().error("@alaydriem/minimap needs @amml/modmanager; the minimap stays off");
             }
             other => {
-                runtime.logger().error(&format!("alaydriem-minimap could not start ({other}); the minimap stays off"));
+                runtime.logger().error(&format!("@alaydriem/minimap could not start ({other}); the minimap stays off"));
             }
         }
     }
