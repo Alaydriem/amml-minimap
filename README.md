@@ -4,9 +4,9 @@
 
 # Alaydriem's Mini Map
 
-[![Release](https://img.shields.io/github/v/release/alaydriem/minimap?include_prereleases)](https://github.com/alaydriem/minimap/releases)
-[![Build](https://img.shields.io/github/actions/workflow/status/alaydriem/minimap/build.yml?branch=master&label=build)](https://github.com/alaydriem/minimap/actions/workflows/build.yml)
-[![License](https://img.shields.io/github/license/alaydriem/minimap)](./LICENSE)
+[![Release](https://img.shields.io/github/v/release/alaydriem/amml-minimap?include_prereleases)](https://github.com/alaydriem/amml-minimap/releases)
+[![Build](https://img.shields.io/github/actions/workflow/status/alaydriem/amml-minimap/build.yml?branch=master&label=build)](https://github.com/alaydriem/amml-minimap/actions/workflows/build.yml)
+[![License](https://img.shields.io/github/license/alaydriem/amml-minimap)](./LICENSE)
 ![Minecraft Bedrock](https://img.shields.io/badge/Minecraft_Bedrock-1.26.51%2C%201.26.60-62B47A)
 [![AMML](https://img.shields.io/badge/AMML-mod-4A90D9)](https://github.com/alaydriem/amml)
 
@@ -45,21 +45,7 @@ Client-side only. The map is built from the chunks your game has already loaded.
 
 ## Installation
 
-Requires:
-
-- the **AMML loader** (26.60.0 or later), which loads the mod into the game. The loader also carries the recipes that
-  find the game addresses the minimap uses (in its `recipes/`). An older loader does not have
-  them: it logs "required entry ... did not resolve" and the minimap stays off. Update the loader first.
-- [Alaydriem's Mod Manager](https://github.com/alaydriem/modmanager), installed as an AMML mod.
-
-Download the zip from the [latest release](https://github.com/alaydriem/minimap/releases/latest) and extract it.
-It holds the folder `@alaydriem/minimap`, with `alaydriem_minimap.dll`, `amml.hcl` and `OFL.txt`. Put that folder in
-the AMML mods folder of the game, so that the files are in `mods/amml/@alaydriem/minimap/`. Then enable the mod in the
-mod manager.
-
-| Mini Map | Minecraft Bedrock | AMML loader | Mod Manager |
-| --- | --- | --- | --- |
-| 26.60.0 | 1.26.51, 1.26.60 | 26.60.0 or later | 26.60.x |
+Install it with the [AMML launcher](https://github.com/alaydriem/amml/releases/latest). The launcher also installs the AMML loader and Alaydriem's Mod Manager, which this mod needs.
 
 ## Controls
 
@@ -122,7 +108,7 @@ Waypoints and the map cache are in `mods/amml/@alaydriem/minimap/data/`.
 
 ## Building
 
-Requires Windows x64, [mise](https://mise.jdx.dev), rustup and [cargo-nextest](https://nexte.st). The `amml` and `modmanager-amml` repos must sit next to this one.
+Requires Windows x64, [mise](https://mise.jdx.dev), rustup and [cargo-nextest](https://nexte.st). Cargo fetches `amml` and `amml-modmanager` from GitHub at tag `26.60.5`. No sibling checkout is needed.
 
 ```powershell
 mise trust

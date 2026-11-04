@@ -56,3 +56,17 @@ entries = [
   "BiomeColorSampling.getWaterColor",
   "BiomeColorSampling.getMapGrassColor",
 ]
+
+listing {
+  title       = "Mini Map"
+  summary     = "Minimap and full-screen world map with waypoints, cave mode, and PNG export."
+  description = <<-EOT
+    A full map mod that grows as you explore the world. View a full map, place waypoints and markers, view chunk borders, find slime chunks, and place a minimap anywhere on your screen during gameplay to find your favorite spots, with support for PNG exports.
+  EOT
+  authors     = ["Charles R. Portwood II"]
+  license     = "BSD-3-Clause"
+  source      = "https://github.com/alaydriem/amml-minimap"
+  homepage    = "https://github.com/alaydriem/amml-minimap#readme"
+  tags        = ["minimap", "map", "waypoints", "cave-mode", "export", "client"]
+  icon        = "icon.png"
+}

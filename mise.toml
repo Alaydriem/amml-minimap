@@ -49,6 +49,7 @@ rm -rf dist/alaydriem-minimap dist/@alaydriem/minimap
 mkdir -p dist/@alaydriem/minimap
 cp target/release/alaydriem_minimap.dll dist/@alaydriem/minimap/alaydriem_minimap.dll
 cp minimap/amml/amml.hcl dist/@alaydriem/minimap/amml.hcl
+cp minimap/amml/icon.png dist/@alaydriem/minimap/icon.png
 # the DLL embeds the NordwandMono font from amml-ui; its licence ships beside it
 ui_manifest=$(cargo metadata --format-version 1 --locked | jq -r '.packages[] | select(.name == "amml-ui") | .manifest_path')
 cp "$(dirname "$ui_manifest")/assets/fonts/OFL.txt" dist/@alaydriem/minimap/OFL.txt
