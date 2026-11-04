@@ -3,7 +3,7 @@ resolver = "3"
 members = ["minimap/core", "minimap/store", "minimap/ui", "minimap/runtime", "minimap/bench", "minimap/link", "minimap/amml"]
 
 [workspace.package]
-version = "26.60.0"
+version = "26.60.5"
 edition = "2024"
 rust-version = "1.98"
 authors = ["Charles R. Portwood II"]
