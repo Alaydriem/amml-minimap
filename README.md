@@ -53,8 +53,8 @@ Requires:
 - [Alaydriem's Mod Manager](https://github.com/alaydriem/modmanager), installed as an AMML mod.
 
 Download the zip from the [latest release](https://github.com/alaydriem/minimap/releases/latest) and extract it.
-It holds one folder, `alaydriem-minimap`, with `alaydriem_minimap.dll`, `amml.hcl` and `OFL.txt`. Put that folder in
-the AMML mods folder of the game, so that the files are in `mods/amml/alaydriem-minimap/`. Then enable the mod in the
+It holds the folder `@alaydriem/minimap`, with `alaydriem_minimap.dll`, `amml.hcl` and `OFL.txt`. Put that folder in
+the AMML mods folder of the game, so that the files are in `mods/amml/@alaydriem/minimap/`. Then enable the mod in the
 mod manager.
 
 | Mini Map | Minecraft Bedrock | AMML loader | Mod Manager |
@@ -81,7 +81,7 @@ The first seven keys can be changed on the mod manager's Keybinds page.
 
 ## Configuration
 
-Settings are in the mod manager panel and saved to `mods/alaydriem-minimap/config/config.hcl`.
+Settings are in the mod manager panel and saved to `mods/amml/@alaydriem/minimap/config/config.hcl`.
 
 | Setting | Default | Description |
 | --- | --- | --- |
@@ -110,7 +110,7 @@ export {
 }
 ```
 
-Waypoints and the map cache are in `mods/alaydriem-minimap/data/`.
+Waypoints and the map cache are in `mods/amml/@alaydriem/minimap/data/`.
 
 ## FAQ
 
@@ -131,7 +131,7 @@ mise run package
 mise run test
 ```
 
-`mise run package` writes `dist/alaydriem-minimap`.
+`mise run package` writes `dist/@alaydriem/minimap/`.
 
 ## License
 
