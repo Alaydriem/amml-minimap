@@ -35,4 +35,4 @@ jobs:
       namespace: alaydriem
       name: minimap
       package_task: package
-      descriptor: minimap/amml/descriptor.hcl
+      descriptor: src/amml/descriptor.hcl

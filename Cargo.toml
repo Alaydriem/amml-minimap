@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["minimap/core", "minimap/store", "minimap/ui", "minimap/runtime", "minimap/bench", "minimap/link", "minimap/amml"]
+members = ["src/core", "src/store", "src/ui", "src/runtime", "src/bench", "src/link", "src/amml"]
 
 [workspace.package]
 version = "26.62.0"
@@ -24,11 +24,11 @@ crossbeam-channel = "0.5.17"
 clipboard-win = "5.4.1"
 egui = { version = "=0.37.0", default-features = false, features = ["default_fonts"] }
 tempfile = "3.27.0"
-minimap-core = { path = "minimap/core" }
-minimap-store = { path = "minimap/store" }
-minimap-runtime = { path = "minimap/runtime" }
-minimap-ui = { path = "minimap/ui" }
-minimap-link = { path = "minimap/link" }
+minimap-core = { path = "src/core" }
+minimap-store = { path = "src/store" }
+minimap-runtime = { path = "src/runtime" }
+minimap-ui = { path = "src/ui" }
+minimap-link = { path = "src/link" }
 hcl-rs = "=0.19.8"
 curia = "=0.2.2"
 amm-abi = { git = "https://github.com/Alaydriem/amml-modmanager.git", tag = "26.62.0" }

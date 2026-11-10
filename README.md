@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="./assets/icon.png" alt="Mini Map" width="256">
+<img src="./assets/readme.png" alt="Mini Map" width="256">
 
 # Alaydriem's Mini Map
 
