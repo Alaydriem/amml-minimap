@@ -7,6 +7,4 @@ pub enum SessionError {
     Link(#[from] LinkError),
     #[error("runtime: {0}")]
     Runtime(#[from] RuntimeError),
-    #[error("config folder: {0}")]
-    Folder(#[from] std::io::Error),
 }

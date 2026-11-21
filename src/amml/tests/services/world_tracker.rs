@@ -1,226 +1,226 @@
-use std::path::Path;
+use std::path::PathBuf;
 
-use alaydriem_minimap::services::{ListenerHub, WorldStorage, WorldTracker};
-use alaydriem_minimap::types::{BlockChange, BlockPos};
+use alaydriem_minimap::types::QueuedColumn;
+use amml_api::testing::FakeClient;
+use amml_api::{ChunkLoad, ColumnSample, Connection, ConnectionKind, WorldInfo};
 use minimap_core::structs::pos::ChunkPos;
-use minimap_runtime::structs::{ProbeRequest, ScanPlan, SubmitStatus};
+use minimap_runtime::structs::{CursorAction, ScanPlan, SubmitStatus};
 use minimap_store::structs::WorldIdentity;
 
-use crate::support::{FakeHeap, FakePalette, FakeWorld, RecordingSink, SinkCall};
+use crate::support::{FakeTerrain, MinimapRig, RecordingSink, SinkCall, TrackerRig};
 
-fn ignore(_: &BlockChange) {}
+fn at(x: i32, z: i32) -> ChunkPos {
+    ChunkPos { x, z, dim: 0 }
+}
 
-fn tracker(sink: RecordingSink, optional: bool) -> WorldTracker<RecordingSink> {
-    let hub: &'static ListenerHub = Box::leak(Box::new(ListenerHub::new(ignore)));
-    let storage: &'static WorldStorage = Box::leak(Box::new(WorldStorage::new()));
-    WorldTracker::new(FakeWorld::entries(optional), sink, hub, Some(FakeHeap::msvc()), Path::new("data"), storage)
+fn plan(candidates: Vec<ChunkPos>, limit: usize) -> ScanPlan {
+    ScanPlan { candidates, limit, camera_height: 320, transparent_water: true, ..ScanPlan::default() }
+}
+
+fn sink(plan: ScanPlan) -> RecordingSink {
+    RecordingSink { plan, ..RecordingSink::default() }
+}
+
+fn info(folder: &str) -> WorldInfo {
+    WorldInfo {
+        storage_folder: Some(PathBuf::from(folder)),
+        level_name: None,
+        seed: Some(5),
+        realm: Some(false),
+        commands_enabled: None,
+        connection: Some(Connection { kind: ConnectionKind::Local, host: String::new(), port: 0 }),
+    }
+}
+
+fn player_with_info(world_info: Option<WorldInfo>) -> FakeClient {
+    FakeClient { world_info, ..MinimapRig::player(0, FakeTerrain::world(&[(0, 0), (1, 0), (2, 0)])) }
 }
 
 #[test]
-fn entering_a_world_names_it_ticks_with_the_player_and_probes_the_plan() {
-    let mut world = FakeWorld::new(FakePalette::STONE);
-    let mut tracker = tracker(RecordingSink::probing(), true);
+fn the_first_tick_in_a_world_enters_it_named_by_its_folder() {
+    let rig = TrackerRig::new(player_with_info(Some(info("C:/worlds/a"))), sink(plan(vec![], 0)));
 
-    tracker.tick(world.client_ptr());
+    rig.tick();
 
-    let local = WorldIdentity::Local { world_dir: Path::new("data").join("local").join("S1234") };
-    assert_eq!(
-        tracker.sink().calls,
-        vec![
-            SinkCall::Enter(local, 0),
-            SinkCall::Tick { present: true },
-            SinkCall::Submit(ChunkPos::new(0, 0, 0), SubmitStatus::Loaded),
-        ]
-    );
-    assert!(tracker.in_world());
+    let world_dir = PathBuf::from("C:/worlds/a").join("@alaydriem").join("minimap").join("data");
+    rig.with_sink(|sink| assert_eq!(sink.calls[0], SinkCall::Enter(WorldIdentity::Local { world_dir }, 0)));
+    assert!(rig.logged("info minimap world entered dimension=0"));
+    assert!(rig.logged("info minimap world named kind=local folder=1"));
 }
 
 #[test]
-fn out_of_a_world_the_tracker_leaves_once_then_ticks_without_a_player() {
-    let mut world = FakeWorld::new(FakePalette::STONE);
-    let mut tracker = tracker(RecordingSink::probing(), true);
-    tracker.tick(world.client_ptr());
-    let entered = tracker.sink().calls.len();
+fn a_server_world_is_named_remote() {
+    let mut world_info = info("C:/worlds/a");
+    world_info.connection = Some(Connection { kind: ConnectionKind::Remote, host: "play.example".into(), port: 19132 });
+    let rig = TrackerRig::new(player_with_info(Some(world_info)), sink(plan(vec![], 0)));
 
-    world.client.world_active = 0;
-    for _ in 0..3 {
-        tracker.tick(world.client_ptr());
+    rig.tick();
+
+    assert!(rig.logged("info minimap world named kind=remote folder=0"));
+}
+
+#[test]
+fn the_tick_gives_the_runtime_the_eye_position_yaw_and_dimension() {
+    let rig = TrackerRig::new(player_with_info(None), sink(plan(vec![], 0)));
+
+    rig.tick();
+
+    rig.with_sink(|sink| {
+        let player = sink.ticks[0].player;
+        assert!(player.present);
+        assert_eq!((player.x, player.y, player.z, player.yaw, player.dim), (8.5, 80.0, 8.5, 90.0, 0));
+        assert!(sink.ticks[0].mouse_grabbed && sink.ticks[0].cursor_hidden && sink.ticks[0].foreground);
+        assert!(!sink.ticks[0].dead);
+    });
+}
+
+#[test]
+fn a_dead_player_is_sent_as_dead() {
+    let client = FakeClient { player_alive: Some(false), ..player_with_info(None) };
+    let rig = TrackerRig::new(client, sink(plan(vec![], 0)));
+
+    rig.tick();
+
+    rig.with_sink(|sink| assert!(sink.ticks[0].dead));
+}
+
+#[test]
+fn leaving_the_world_leaves_once_and_ticks_without_a_player() {
+    let rig = TrackerRig::new(player_with_info(None), sink(plan(vec![], 0)));
+    rig.tick();
+
+    rig.game.set_client(FakeClient { mouse_captured: Some(false), ..FakeClient::default() });
+    rig.tick();
+    rig.tick();
+
+    rig.with_sink(|sink| {
+        assert_eq!(sink.calls.iter().filter(|call| **call == SinkCall::Leave).count(), 1);
+        assert!(!sink.ticks[2].player.present);
+    });
+    assert!(rig.logged("info minimap world left"));
+}
+
+#[test]
+fn a_world_leave_event_leaves_at_once_and_drops_the_cursor_clip() {
+    let clip = ScanPlan { cursor: CursorAction::ClipToCentre, ..plan(vec![], 0) };
+    let rig = TrackerRig::new(player_with_info(None), sink(clip));
+    rig.tick();
+
+    rig.leave();
+
+    rig.with_sink(|sink| assert_eq!(sink.calls.last(), Some(&SinkCall::Leave)));
+    assert_eq!(rig.game.window_requests(), vec!["clip_cursor centre", "clip_cursor none"]);
+    assert!(rig.logged("info minimap cursor clip off reason=left"));
+}
+
+#[test]
+fn a_dimension_change_is_logged_and_sent() {
+    let rig = TrackerRig::new(player_with_info(None), sink(plan(vec![], 0)));
+    rig.tick();
+
+    rig.game.set_client(FakeClient { dimension: Some(1), ..player_with_info(None) });
+    rig.tick();
+
+    rig.with_sink(|sink| assert_eq!(sink.ticks[1].player.dim, 1));
+    assert!(rig.logged("info minimap dimension dimension=1"));
+}
+
+#[test]
+fn probing_stops_reading_after_the_limit_of_loaded_chunks() {
+    let rig = TrackerRig::new(player_with_info(None), sink(plan(vec![at(5, 5), at(0, 0), at(1, 0), at(2, 0)], 2)));
+
+    rig.tick();
+
+    rig.with_sink(|sink| {
+        assert_eq!(
+            sink.submitted_status(),
+            vec![
+                (at(5, 5), SubmitStatus::NotLoaded),
+                (at(0, 0), SubmitStatus::Loaded),
+                (at(1, 0), SubmitStatus::Loaded),
+                (at(2, 0), SubmitStatus::NotProbed),
+            ]
+        );
+    });
+}
+
+#[test]
+fn a_chunk_with_a_placeholder_top_is_submitted_to_probe_again() {
+    let mut world = FakeTerrain::world(&[]);
+    world.chunks.insert((0, 0), FakeTerrain::chunk(ChunkLoad::TopPlaceholder, FakeTerrain::stone()));
+    let client = FakeClient { world: Some(world), ..player_with_info(None) };
+    let rig = TrackerRig::new(client, sink(plan(vec![at(0, 0)], 4)));
+
+    rig.tick();
+
+    rig.with_sink(|sink| assert_eq!(sink.submitted_status(), vec![(at(0, 0), SubmitStatus::TopPlaceholder)]));
+}
+
+#[test]
+fn chunks_read_and_the_colour_source_are_logged_once() {
+    let candidates: Vec<ChunkPos> = (0..3).map(|x| at(x, 0)).collect();
+    let rig = TrackerRig::new(player_with_info(None), sink(plan(candidates, 32)));
+
+    for _ in 0..12 {
+        rig.tick();
     }
 
-    let after: Vec<_> = tracker.sink().calls[entered..].to_vec();
-    assert_eq!(
-        after,
-        vec![
-            SinkCall::Leave,
-            SinkCall::Tick { present: false },
-            SinkCall::Tick { present: false },
-            SinkCall::Tick { present: false },
-        ]
-    );
-    assert!(!tracker.in_world());
+    assert_eq!(rig.logged_start("info minimap chunks read loaded="), 1);
+    assert!(rig.logged("info minimap chunks read loaded=33"));
+    assert_eq!(rig.logged_start("info minimap colours source=vanilla"), 1);
 }
 
 #[test]
-fn chunks_past_the_plan_limit_are_not_probed() {
-    let mut world = FakeWorld::new(FakePalette::STONE);
-    let plan = ScanPlan {
-        candidates: vec![ChunkPos::new(0, 0, 0), ChunkPos::new(1, 0, 0)],
-        limit: 1,
-        camera_height: 320,
-        ..ScanPlan::default()
-    };
-    let mut tracker = tracker(RecordingSink::new(plan), true);
+fn a_requested_biome_is_named_and_no_biome_gets_an_empty_name() {
+    let requests = vec![FakeTerrain::PLAINS, ColumnSample::NO_BIOME];
+    let rig =
+        TrackerRig::new(player_with_info(None), sink(ScanPlan { biome_requests: requests, ..plan(vec![at(0, 0)], 4) }));
 
-    tracker.tick(world.client_ptr());
+    rig.tick();
 
-    let submits: Vec<_> =
-        tracker.sink().calls.iter().filter(|call| matches!(call, SinkCall::Submit(..))).cloned().collect();
-    assert_eq!(
-        submits,
-        vec![
-            SinkCall::Submit(ChunkPos::new(0, 0, 0), SubmitStatus::Loaded),
-            SinkCall::Submit(ChunkPos::new(1, 0, 0), SubmitStatus::NotProbed),
-        ]
-    );
+    rig.with_sink(|sink| {
+        assert!(sink.calls.contains(&SinkCall::BiomeName(FakeTerrain::PLAINS, "plains".to_string())));
+        assert!(sink.calls.contains(&SinkCall::BiomeName(ColumnSample::NO_BIOME, String::new())));
+    });
+    assert!(rig.logged("info minimap biome named id=1 name=plains"));
 }
 
 #[test]
-fn reset_removes_the_listener_from_the_source_it_was_added_to() {
-    let mut world = FakeWorld::new(FakePalette::STONE);
-    let mut tracker = tracker(RecordingSink::probing(), true);
-    tracker.tick(world.client_ptr());
-    let object = tracker.listener().unwrap().object() as usize;
+fn a_block_change_reads_its_column_at_the_next_tick() {
+    let mut sink = sink(plan(vec![], 0));
+    sink.column_requests.insert((3, 2), (at(0, 0), 35));
+    let rig = TrackerRig::new(player_with_info(None), sink);
+    rig.tick();
 
-    tracker.reset(true);
+    rig.block_changed(QueuedColumn { dimension: 0, x: 3, z: 2 });
+    rig.with_sink(|sink| assert!(!sink.calls.iter().any(|call| matches!(call, SinkCall::Column(..)))));
+    rig.tick();
 
-    assert_eq!(world.source.added, vec![object]);
-    assert_eq!(world.source.removed, vec![object]);
+    rig.with_sink(|sink| {
+        assert!(sink.calls.contains(&SinkCall::BlockChanged(3, 2, 0)));
+        assert!(sink.calls.iter().any(|call| matches!(call, SinkCall::Column(pos, 35, _) if *pos == at(0, 0))));
+    });
+    assert!(rig.logged("info minimap block change column x=3 z=2"));
 }
 
 #[test]
-fn after_the_source_is_destroyed_leaving_the_world_never_reaches_it() {
-    let mut world = FakeWorld::new(FakePalette::STONE);
-    let mut tracker = tracker(RecordingSink::probing(), true);
-    tracker.tick(world.client_ptr());
-    let listener = tracker.listener().unwrap();
-    let thunk = listener.vtable()[FakeWorld::LISTENER_SOURCE_DESTROYED as usize];
-    // SAFETY: the slot holds the onSourceDestroyed thunk
-    let thunk: extern "C" fn(*mut std::ffi::c_void, *mut std::ffi::c_void) = unsafe { std::mem::transmute(thunk) };
+fn a_block_change_of_another_dimension_is_not_read() {
+    let rig = TrackerRig::new(player_with_info(None), sink(plan(vec![], 0)));
+    rig.tick();
 
-    thunk(listener.object(), world.source.ptr());
-    world.client.world_active = 0;
-    tracker.tick(world.client_ptr());
-    tracker.reset(true);
+    rig.block_changed(QueuedColumn { dimension: 1, x: 3, z: 2 });
+    rig.tick();
 
-    assert_eq!(world.source.added.len(), 1);
-    assert!(world.source.removed.is_empty());
+    rig.with_sink(|sink| assert!(!sink.calls.contains(&SinkCall::BlockChanged(3, 2, 1))));
 }
 
 #[test]
-fn without_the_block_changes_feature_no_listener_is_made() {
-    let mut world = FakeWorld::new(FakePalette::STONE);
-    let mut tracker = tracker(RecordingSink::probing(), false);
+fn a_clip_the_plan_asks_for_in_play_is_requested() {
+    let clip = ScanPlan { cursor: CursorAction::ClipToCentre, ..plan(vec![], 0) };
+    let rig = TrackerRig::new(player_with_info(None), sink(clip));
 
-    tracker.tick(world.client_ptr());
+    rig.tick();
 
-    assert!(tracker.listener().is_none());
-    assert!(world.source.added.is_empty());
-}
-
-#[test]
-fn a_block_that_changes_type_probes_the_column_the_minimap_asks_for() {
-    let mut world = FakeWorld::new(FakePalette::STONE);
-    let mut sink = RecordingSink::probing();
-    sink.request = ProbeRequest::Column { pos: ChunkPos::new(0, 0, 0), index: 5 };
-    let mut tracker = tracker(sink, true);
-    tracker.tick(world.client_ptr());
-    let ticked = tracker.sink().calls.len();
-    let pos = BlockPos { x: 5, y: 4, z: 0 };
-    let source = world.source.ptr();
-    let same = BlockChange {
-        source,
-        pos,
-        block: world.palette.block(FakePalette::STONE),
-        old_block: world.palette.block(FakePalette::STONE),
-    };
-    let changed = BlockChange { block: world.palette.block(FakePalette::LAVA), ..same };
-
-    tracker.block_changed(&same);
-    tracker.block_changed(&changed);
-
-    let after: Vec<_> = tracker.sink().calls[ticked..].to_vec();
-    assert_eq!(after, vec![SinkCall::BlockChanged(5, 0, 0), SinkCall::Column(ChunkPos::new(0, 0, 0), 5)]);
-}
-
-#[test]
-fn each_enable_makes_one_listener_and_its_disable_frees_it_once_after_the_detach() {
-    let mut world = FakeWorld::new(FakePalette::STONE);
-    let object_size = 2 * size_of::<usize>();
-    let mut objects = Vec::new();
-
-    for cycle in 1..=2 {
-        let mut tracker = tracker(RecordingSink::probing(), true);
-        tracker.tick(world.client_ptr());
-        let object = tracker.listener().unwrap().object() as usize;
-        let before_reset = FakeHeap::frees_of(object);
-        tracker.reset(true);
-
-        assert_eq!(FakeHeap::allocations_of(object_size), cycle, "one allocation per enable");
-        assert_eq!(before_reset, 0, "no free before the detach");
-        assert_eq!(FakeHeap::frees_of(object), 1, "one free per disable");
-        assert_eq!(world.source.removed.last(), Some(&object), "removed before it was freed");
-        assert!(tracker.listener().is_none());
-        objects.push(object);
-    }
-    assert_eq!(world.source.added.len(), 2, "re-enable registers a fresh object");
-}
-
-#[test]
-fn a_listener_whose_source_was_destroyed_is_freed_at_disable_without_a_remove() {
-    let mut world = FakeWorld::new(FakePalette::STONE);
-    let mut tracker = tracker(RecordingSink::probing(), true);
-    tracker.tick(world.client_ptr());
-    let listener = tracker.listener().unwrap();
-    let object = listener.object() as usize;
-    let thunk = listener.vtable()[FakeWorld::LISTENER_SOURCE_DESTROYED as usize];
-    // SAFETY: the slot holds the onSourceDestroyed thunk
-    let thunk: extern "C" fn(*mut std::ffi::c_void, *mut std::ffi::c_void) = unsafe { std::mem::transmute(thunk) };
-
-    thunk(listener.object(), world.source.ptr());
-    tracker.reset(true);
-
-    assert!(world.source.removed.is_empty());
-    assert_eq!(FakeHeap::frees_of(object), 1);
-}
-
-#[test]
-fn off_the_game_thread_with_a_source_attached_the_listener_is_removed_but_stays_allocated() {
-    let mut world = FakeWorld::new(FakePalette::STONE);
-    let mut tracker = tracker(RecordingSink::probing(), true);
-    tracker.tick(world.client_ptr());
-    let object = tracker.listener().unwrap().object() as usize;
-
-    tracker.reset(false);
-
-    assert_eq!(world.source.removed, vec![object], "it still leaves its source");
-    assert_eq!(FakeHeap::frees_of(object), 0, "the object is not freed");
-    assert!(tracker.listener().is_none());
-    assert!(!tracker.in_world());
-}
-
-#[test]
-fn off_the_game_thread_with_no_source_attached_the_listener_is_freed() {
-    let mut world = FakeWorld::new(FakePalette::STONE);
-    let mut tracker = tracker(RecordingSink::probing(), true);
-    tracker.tick(world.client_ptr());
-    let listener = tracker.listener().unwrap();
-    let object = listener.object() as usize;
-    let thunk = listener.vtable()[FakeWorld::LISTENER_SOURCE_DESTROYED as usize];
-    // SAFETY: the slot holds the onSourceDestroyed thunk
-    let thunk: extern "C" fn(*mut std::ffi::c_void, *mut std::ffi::c_void) = unsafe { std::mem::transmute(thunk) };
-
-    thunk(listener.object(), world.source.ptr());
-    tracker.reset(false);
-
-    assert_eq!(FakeHeap::frees_of(object), 1);
+    assert_eq!(rig.game.window_requests(), vec!["clip_cursor centre"]);
+    assert!(rig.logged("info minimap cursor clip on"));
 }

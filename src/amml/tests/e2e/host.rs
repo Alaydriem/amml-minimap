@@ -1,23 +1,34 @@
 use std::path::PathBuf;
+use std::sync::{Arc, OnceLock};
 
-use amm_abi::types::{AMM_ABI_MAJOR, AmmStatus};
-use amm_client::link::{ApiTable, ManagerLink};
+use alaydriem_minimap::services::KeyListener;
+use amm_abi::types::AmmStatus;
+use amm_client::link::ManagerLink;
 use amm_core::structs::frame::LayerKind;
-use amm_ffi::api::amm_api_for;
+use amm_ffi::api::ManagerTables;
 use amm_ffi::host::{amm_host_create, amm_host_destroy, amm_host_frame, amm_host_key, amm_host_pointer, amm_host_tick};
 use amm_ffi::services::HostCell;
 use amm_ffi::types::{AmmHostFrame, AmmHostFrameInput, AmmHostLayer};
+use amml_api::amml_abi::{AmmlDirKind, KeyInput, ProviderGone, ProviderReady};
+use amml_api::testing::FakeGame;
+use amml_api::{Area, HookOrder, Listener};
 use minimap_core::structs::view::PlayerSnapshot;
-use minimap_link::services::{MinimapSession, SystemClipboard};
+use minimap_link::services::{KeyFeed, MinimapFrameHandler, MinimapSession, SystemClipboard};
+use minimap_link::structs::Descriptor;
 use minimap_runtime::structs::{RuntimePaths, ScanPlan, TickInput};
 use tempfile::TempDir;
 
-// the real mod manager, linked into the test process, with minimap registered on it the way enable() does;
-// the host is process-global, so each test runs alone in its process (nextest)
+// the real mod manager, linked into the test process, with its tables in a fake loader and minimap registered on
+// it the way enable() and the first tick do; the host is process-global, so each test runs alone in its process
+// (nextest)
 pub struct Host {
-    dir: TempDir,
     pub session: Option<MinimapSession<ManagerLink, SystemClipboard>>,
     pub now_ms: u64,
+    // the mod's `KeyInput` listener on the fake loader, as `MinimapListeners` adds it
+    _keys: Listener,
+    // dropped after the session, so the link's listeners end while the loader lives
+    _loader: FakeGame,
+    dir: TempDir,
 }
 
 impl Host {
@@ -37,12 +48,32 @@ impl Host {
             amm_host_create(config.as_ptr(), config.len(), game.as_ptr(), game.len(), version.as_ptr(), version.len())
         };
         assert_eq!(status, AmmStatus::Ok);
-        let ptr = amm_api_for(AMM_ABI_MAJOR);
-        // SAFETY: amm_api_for returns null or the manager's static table
-        let table = unsafe { ApiTable::new(ptr) }.unwrap();
+        let loader = FakeGame::new();
+        loader.offer::<ProviderReady>();
+        loader.offer::<ProviderGone>();
+        loader.offer::<KeyInput>();
+        loader.offer_area(Area::INPUT_LEASE);
+        loader.bind_input();
+        loader.open_gate();
+        ManagerTables::provide_all(&loader.ctx().registry()).unwrap();
+        let config_dir = dir.path().join("mods").join("minimap");
+        std::fs::create_dir_all(&config_dir).unwrap();
+        loader.set_dir(AmmlDirKind::CONFIG, &config_dir.display().to_string());
+        let ctx = loader.ctx_named("@alaydriem/minimap");
+        let slot = Arc::new(OnceLock::new());
+        let feed = Arc::new(KeyFeed::new());
+        let handler = MinimapFrameHandler::new(Arc::clone(&slot), Arc::clone(&feed));
+        let link = ManagerLink::start(&ctx, Descriptor::TEXT, Some(handler)).unwrap();
+        let fed = Arc::clone(&feed);
+        let keys = ctx
+            .events()
+            .listen::<KeyInput>(HookOrder::NORMAL, move |event, _| {
+                KeyListener::on_key(&fed, event, false);
+            })
+            .unwrap();
         let paths = RuntimePaths { data_dir: dir.path().join("data") };
-        let session = MinimapSession::connect_with(table, &dir.path().join("mods").join("minimap"), paths).unwrap();
-        let mut host = Self { dir, session: Some(session), now_ms: 1_000 };
+        let session = MinimapSession::open(link, &slot, feed, paths).unwrap();
+        let mut host = Self { session: Some(session), now_ms: 1_000, _keys: keys, _loader: loader, dir };
         host.tick();
         host
     }
@@ -57,6 +88,14 @@ impl Host {
 
     pub fn session(&mut self) -> &mut MinimapSession<ManagerLink, SystemClipboard> {
         self.session.as_mut().unwrap()
+    }
+
+    // a key press and release from the game's key feed, as the loader raises `KeyInput` while the mod's input lease
+    // blocks keys (already cancelled; the manager's router does not see them), then a game tick
+    pub fn game_key(&mut self, vk: u16) {
+        self._loader.real_key(vk, true);
+        self._loader.real_key(vk, false);
+        self.tick();
     }
 
     // a key press and release through the manager's router, then a game tick

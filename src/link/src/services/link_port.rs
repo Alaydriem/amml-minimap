@@ -58,4 +58,8 @@ impl ManagerPort for ManagerLink {
     fn set_localizer(&self, localizer: Arc<Localizer>) {
         ManagerLink::set_localizer(self, localizer);
     }
+
+    fn panel_open(&self) -> bool {
+        ManagerLink::panel_open(self)
+    }
 }

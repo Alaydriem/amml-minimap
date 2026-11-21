@@ -35,6 +35,8 @@ pub struct FakePort {
     // session gave; shared, so a test changes and reads them after the port moved into the session
     pub locale: Rc<RefCell<Option<String>>>,
     pub localizer: Rc<RefCell<Option<Arc<Localizer>>>>,
+    // whether the manager panel is open; shared, so a test changes it after the port moved into the session
+    pub panel_open: Rc<RefCell<bool>>,
 }
 
 impl FakePort {
@@ -48,6 +50,7 @@ impl FakePort {
             grant: TextureGrant::OLD_MANAGER,
             locale: Rc::new(RefCell::new(None)),
             localizer: Rc::new(RefCell::new(None)),
+            panel_open: Rc::new(RefCell::new(false)),
         }
     }
 
@@ -104,5 +107,9 @@ impl ManagerPort for FakePort {
 
     fn set_localizer(&self, localizer: Arc<Localizer>) {
         *self.localizer.borrow_mut() = Some(localizer);
+    }
+
+    fn panel_open(&self) -> bool {
+        *self.panel_open.borrow()
     }
 }

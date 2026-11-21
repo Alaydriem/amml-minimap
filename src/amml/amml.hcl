@@ -1,62 +1,114 @@
 namespace   = "alaydriem"
 name        = "minimap"
 entry       = "alaydriem_minimap.dll"
-api_version = 2
-amml_version = "26.60.6"
-entries = [
-  # required: the minimap refuses to enable without them
-  "ClientInstance.update",
-  "ClientInstance.getLocalPlayer",
-  "ClientInstance.isWorldActive",
-  "ClientInstance.getMouseGrabbed",
-  "ClientInstance.getRegion",
-  "Actor.stateVectorComponent",
-  "Actor.actorRotationComponent",
-  "StateVectorComponent.mPos",
-  "ActorRotationComponent.mRot",
-  "Actor.getDimension",
-  "Dimension.getDimensionId",
-  "Actor.getDimensionBlockSource",
-  "Actor.isAlive",
-  "Actor.mLevel",
-  "BlockSource.getChunk",
-  "LevelChunk.mSubChunks",
-  "LevelChunk.getBlock",
-  "SubChunk.size",
-  "SubChunk.isPlaceHolderSubChunk",
-  # required: the block material layout, by pointer (26.51) or by value (26.60)
-  "BlockType.mMaterialInline",
-  # a recipe helper: other entries are derived from it
-  "BlockSource.vtable",
-  # optional, minimap.server_identity
-  "ClientInstance.getGameConnectionInfo",
-  "GameConnectionInfo.size",
-  "GameConnectionInfo.dtor",
-  "Level.getSeed",
-  # optional, minimap.world_folder
-  "DBStorage.vtable",
-  "DBStorage.ctor",
-  "DBStorage.checkShutdownDone",
-  # optional, minimap.biomes
-  "Level.getBiomeRegistry",
-  "BiomeRegistry.lookupById",
-  "LevelChunk.getBiome",
-  # optional, minimap.block_changes
-  "BlockSourceListener.vtable",
-  "BlockSourceListener.onSourceDestroyed",
-  "BlockSourceListener.onBlockChanged",
-  "BlockSource.addListener",
-  "BlockSource.removeListener",
-  "BlockSource.getDimensionId",
-  # optional, minimap.vanilla_colors
-  "Dimension.getBlockSourceFromMainChunkSource",
-  "Block.tryGetComponent.BlockMapColorComponent",
-  "BiomeColorSampling.getMapPolicy",
-  "MapPolicy.get",
-  "BlockType.getMapColor",
-  "BiomeColorSampling.getWaterColor",
-  "BiomeColorSampling.getMapGrassColor",
-]
+api_version = 3
+
+uses {
+  feature "minimap" {
+    event "client.tick" {
+      version  = 1
+      required = true
+    }
+    event "world.left" {
+      version  = 1
+      required = true
+    }
+    event "input.key" {
+      version  = 1
+      required = true
+    }
+    event "registry.provider_ready" {
+      version  = 1
+      required = true
+    }
+    event "registry.provider_gone" {
+      version  = 1
+      required = true
+    }
+    event "mods.loaded" {
+      version  = 1
+      required = true
+    }
+    event "input.lease_suspended" {
+      version  = 1
+      required = true
+    }
+    event "input.lease_resumed" {
+      version  = 1
+      required = true
+    }
+    event "input.lease_lost" {
+      version  = 1
+      required = true
+    }
+    event "input.injected_released" {
+      version  = 2
+      required = true
+    }
+    event "overlay.screenshot_taken" {
+      version  = 1
+      required = true
+    }
+    event "overlay.screenshot_written" {
+      version  = 1
+      required = true
+    }
+    area "input.lease" {
+      version  = 1
+      required = true
+    }
+    area "client.read" {
+      version  = 1
+      required = true
+    }
+    area "client.mouse" {
+      version  = 1
+      required = true
+    }
+    area "window.read" {
+      version  = 1
+      required = true
+    }
+    area "actor.read" {
+      version  = 3
+      required = true
+    }
+    area "world.chunk_read" {
+      version  = 1
+      required = true
+    }
+  }
+  feature "world_identity" {
+    area "client.world_info" {
+      version  = 1
+      required = true
+    }
+  }
+  feature "biomes" {
+    area "world.biomes" {
+      version  = 1
+      required = true
+    }
+  }
+  feature "block_changes" {
+    event "world.block_changed" {
+      version  = 1
+      required = true
+    }
+  }
+  feature "vanilla_colors" {
+    area "world.map_color" {
+      version  = 1
+      required = true
+    }
+  }
+  feature "cursor_clip" {
+    area "window.cursor_clip" {
+      version  = 1
+      required = true
+    }
+  }
+}
 
 listing {
   title       = "Mini Map"

@@ -4,7 +4,8 @@ use minimap_link::traits::ManagerPort;
 
 #[test]
 fn drain_events_takes_more_than_one_batch() {
-    let mut link = FakeTable::link_without_frame();
+    let mut connection = FakeTable::link_without_frame();
+    let link = &mut connection.link;
     for _ in 0..150 {
         FakeTable::push_event(ModEvent::WorldReloadApply);
     }
@@ -17,10 +18,11 @@ fn drain_events_takes_more_than_one_batch() {
 
 #[test]
 fn config_reads_the_manager_document_and_clamps_it() {
-    let link = FakeTable::link_without_frame();
+    let connection = FakeTable::link_without_frame();
+    let link = &connection.link;
     FakeTable::set_config("mini_map {\n  radius_chunks = 60\n  size_ratio = 0.3\n}\n");
 
-    let config = match ManagerPort::config(&link) {
+    let config = match ManagerPort::config(link) {
         Ok(config) => config,
         Err(error) => panic!("config not read: {error}"),
     };
@@ -31,8 +33,11 @@ fn config_reads_the_manager_document_and_clamps_it() {
 
 #[test]
 fn texture_budget_reads_the_manager_grant() {
-    let link = FakeTable::link_without_frame();
-    FakeTable::set_texture_grant(amm_core::structs::manager::TextureGrant { bytes: 300 * 1024 * 1024, count: 1500 });
+    let connection = FakeTable::link_without_frame();
+    let link = &connection.link;
+    FakeTable::with(|state| {
+        state.texture_grant = amm_core::structs::manager::TextureGrant { bytes: 300 * 1024 * 1024, count: 1500 };
+    });
 
     let grant = link.texture_budget_grant();
 

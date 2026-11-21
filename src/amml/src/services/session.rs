@@ -1,11 +1,11 @@
 use std::path::Path;
-use std::sync::Arc;
+use std::sync::{Arc, OnceLock};
 
 use amm_client::link::ManagerLink;
 use minimap_core::structs::chunk::{ChunkProbe, ColumnSample};
 use minimap_core::structs::pos::ChunkPos;
 use minimap_link::errors::SessionError;
-use minimap_link::services::{MinimapSession, SystemClipboard};
+use minimap_link::services::{KeyFeed, MinimapSession, SystemClipboard};
 use minimap_runtime::errors::RuntimeError;
 use minimap_runtime::services::Runtime;
 use minimap_runtime::structs::{ProbeRequest, RuntimePaths, ScanPlan, SubmitStatus, TickInput};
@@ -20,11 +20,17 @@ pub struct MapSession {
 }
 
 impl MapSession {
-    // registers with the manager and starts the runtime's threads; `config_dir` is where the manager keeps
-    // config.hcl, `data_dir` where the caches of servers and unnamed worlds go
-    pub fn connect(config_dir: &Path, data_dir: &Path) -> Result<Self, SessionError> {
+    // starts the runtime's threads on a connected link and hands the runtime to the link's frame handler through
+    // `slot`; `keys` is the key feed of that frame handler; `data_dir` is where the caches of servers and unnamed
+    // worlds go
+    pub fn open(
+        link: ManagerLink,
+        slot: &OnceLock<Arc<Runtime>>,
+        keys: Arc<KeyFeed>,
+        data_dir: &Path,
+    ) -> Result<Self, SessionError> {
         let paths = RuntimePaths { data_dir: data_dir.to_path_buf() };
-        Ok(Self::new(MinimapSession::connect(config_dir, paths)?))
+        Ok(Self::new(MinimapSession::open(link, slot, keys, paths)?))
     }
 
     pub fn new(session: MinimapSession<ManagerLink, SystemClipboard>) -> Self {

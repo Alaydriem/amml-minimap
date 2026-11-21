@@ -11,7 +11,7 @@ use amml_i18n::text::Text;
 use minimap_core::config::Config;
 use minimap_core::structs::draw::TextureGrant;
 use minimap_core::structs::view::PlayerSnapshot;
-use minimap_link::services::MinimapSession;
+use minimap_link::services::{KeyFeed, MinimapSession};
 use minimap_runtime::services::Runtime;
 use minimap_runtime::structs::{CursorAction, RuntimePaths, ScanPlan, TickInput};
 use minimap_store::structs::WorldIdentity;
@@ -43,7 +43,7 @@ impl World {
 }
 
 fn session(port: FakePort, runtime: &Arc<Runtime>) -> MinimapSession<FakePort, FakeClipboard> {
-    MinimapSession::with_port(port, Arc::clone(runtime), FakeClipboard::default())
+    MinimapSession::with_port(port, Arc::clone(runtime), FakeClipboard::default(), Arc::new(KeyFeed::new()))
 }
 
 fn press(action: u16) -> ModEvent {
@@ -341,5 +341,90 @@ fn old_manager_gets_english() {
     let session = session(port, &runtime);
 
     assert_eq!(save_word(&localizer).as_deref(), Some("Save"));
+    session.shutdown();
+}
+
+#[test]
+fn the_key_feed_is_armed_while_the_world_map_is_open_and_the_panel_is_closed() {
+    let world = World::new();
+    let runtime = world.runtime(Config::default());
+    world.enter(&runtime);
+    let feed = Arc::new(KeyFeed::new());
+    let mut port = FakePort::new();
+    port.events.push_back(press(TOGGLE_WORLD_MAP));
+    let panel_open = Rc::clone(&port.panel_open);
+    let mut session =
+        MinimapSession::with_port(port, Arc::clone(&runtime), FakeClipboard::default(), Arc::clone(&feed));
+
+    tick(&mut session);
+    let open = feed.armed();
+    *panel_open.borrow_mut() = true;
+    tick(&mut session);
+    let with_panel = feed.armed();
+
+    assert!(runtime.view_flags().world_map_open);
+    assert!(open);
+    assert!(!with_panel);
+    session.shutdown();
+}
+
+#[test]
+fn the_key_feed_is_not_armed_while_the_world_map_is_closed() {
+    let world = World::new();
+    let runtime = world.runtime(Config::default());
+    let feed = Arc::new(KeyFeed::new());
+    let mut session =
+        MinimapSession::with_port(FakePort::new(), Arc::clone(&runtime), FakeClipboard::default(), Arc::clone(&feed));
+
+    tick(&mut session);
+
+    assert!(!feed.armed());
+    session.shutdown();
+}
+
+#[test]
+fn a_bind_fed_from_the_game_keys_closes_the_open_world_map() {
+    let world = World::new();
+    let runtime = world.runtime(Config::default());
+    world.enter(&runtime);
+    let feed = Arc::new(KeyFeed::new());
+    let mut port = FakePort::new();
+    port.events.push_back(press(TOGGLE_WORLD_MAP));
+    let mut session =
+        MinimapSession::with_port(port, Arc::clone(&runtime), FakeClipboard::default(), Arc::clone(&feed));
+    tick(&mut session);
+    assert!(runtime.view_flags().world_map_open);
+
+    feed.on_key(amml_api::KeyCode::M, true, false, amml_api::Modifiers::NONE, true);
+    feed.on_key(amml_api::KeyCode::M, false, false, amml_api::Modifiers::NONE, true);
+    tick(&mut session);
+
+    assert!(!runtime.view_flags().world_map_open);
+    assert!(!feed.armed());
+    session.shutdown();
+}
+
+#[test]
+fn changed_settings_change_the_chords_the_feed_matches() {
+    let world = World::new();
+    let runtime = world.runtime(Config::default());
+    world.enter(&runtime);
+    let feed = Arc::new(KeyFeed::new());
+    let mut port = FakePort::new();
+    port.config.keys.toggle_world_map = "Ctrl+M".to_string();
+    port.events.push_back(ModEvent::SettingsChanged { paths: 1 });
+    port.events.push_back(press(TOGGLE_WORLD_MAP));
+    let mut session =
+        MinimapSession::with_port(port, Arc::clone(&runtime), FakeClipboard::default(), Arc::clone(&feed));
+    tick(&mut session);
+
+    feed.on_key(amml_api::KeyCode::M, true, false, amml_api::Modifiers::NONE, true);
+    tick(&mut session);
+    let after_plain_m = runtime.view_flags().world_map_open;
+    feed.on_key(amml_api::KeyCode::M, true, false, amml_api::Modifiers::CTRL, true);
+    tick(&mut session);
+
+    assert!(after_plain_m);
+    assert!(!runtime.view_flags().world_map_open);
     session.shutdown();
 }
