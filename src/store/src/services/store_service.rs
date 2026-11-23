@@ -7,6 +7,7 @@ use std::time::Duration;
 use crossbeam_channel::{Receiver, Sender, TrySendError};
 
 use crate::errors::StoreError;
+use crate::services::FolderTurn;
 use crate::services::store_worker::StoreWorker;
 use crate::structs::{ShutdownReport, StoreCommand, StoreEvent, StoreSettings};
 
@@ -21,8 +22,11 @@ pub struct StoreService {
 }
 
 impl StoreService {
-    // root None runs without a disk cache: appends are acknowledged, loads report missing
-    pub fn start(root: Option<PathBuf>, settings: StoreSettings) -> Result<Self, StoreError> {
+    const TURN_WARNING: Duration = Duration::from_secs(5);
+
+    // root None runs without a disk cache: appends are acknowledged, loads report missing. With a turn, the thread
+    // handles no command until the turn before it on the folder has ended; commands queue meanwhile
+    pub fn start(root: Option<PathBuf>, settings: StoreSettings, turn: Option<FolderTurn>) -> Result<Self, StoreError> {
         let (command_tx, command_rx) = crossbeam_channel::bounded(settings.queue_capacity);
         let (event_tx, event_rx) = crossbeam_channel::bounded(settings.queue_capacity);
         let (done_tx, done_rx) = crossbeam_channel::bounded(1);
@@ -31,7 +35,14 @@ impl StoreService {
         let written = Arc::new(AtomicU64::new(0));
         let worker_written = Arc::clone(&written);
         let worker = std::thread::Builder::new().name("minimap-store".to_string()).spawn(move || {
+            if let Some(turn) = &turn
+                && !turn.wait_due(Self::TURN_WARNING)
+            {
+                curia::warn!("the store waits for an earlier writer of its folder to finish");
+                turn.wait_due(Duration::MAX);
+            }
             StoreWorker::new(root, settings, command_rx, event_tx, worker_stop, worker_written).run();
+            drop(turn);
             let _ = done_tx.send(());
         })?;
         Ok(Self { commands: Some(command_tx), events: event_rx, done: done_rx, worker: Some(worker), stop, written })

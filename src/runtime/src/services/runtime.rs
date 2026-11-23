@@ -18,6 +18,7 @@ use minimap_core::structs::pos::ChunkPos;
 use minimap_core::structs::settings::SettingWrite;
 use minimap_core::structs::view::{ViewFlags, ViewState};
 use minimap_core::structs::waypoint::Waypoint;
+use minimap_store::services::FolderTurns;
 use minimap_store::structs::WorldIdentity;
 
 use crate::errors::RuntimeError;
@@ -44,6 +45,7 @@ pub struct Runtime {
     active: AtomicBool,
     // the mod was disabled and the cursor clip is not yet given back
     release_cursor: AtomicBool,
+    turns: Arc<FolderTurns>,
 }
 
 impl Runtime {
@@ -92,7 +94,8 @@ impl Runtime {
         let export_dir = ExportService::folder(&config.export.folder, home.as_deref(), &paths.data_dir);
         let exports = Arc::new(ExportService::start(&export_dir, Arc::clone(&shared))?);
         let render = RenderSide::new(Arc::clone(&shared), &config, Arc::clone(&exports), grant);
-        let game = GameSide::new(Arc::clone(&shared), config, paths, Arc::clone(&exports))?;
+        let turns = FolderTurns::new_shared();
+        let game = GameSide::new(Arc::clone(&shared), config, paths, Arc::clone(&exports), Arc::clone(&turns))?;
         if telemetry.is_some() {
             game.append_line(&telemetry_path, TelemetryRow::HEADER.to_string(), true);
         }
@@ -109,7 +112,15 @@ impl Runtime {
             telemetry_path,
             active: AtomicBool::new(true),
             release_cursor: AtomicBool::new(false),
+            turns,
         })
+    }
+
+    // the writer order of the world cache folders: anything else that writes a world's cache folder takes a turn
+    // on it first, and the world's store then waits for that turn to end. The caller drops the turn when it is done:
+    // the store waits for it without a limit
+    pub fn folder_turns(&self) -> Arc<FolderTurns> {
+        Arc::clone(&self.turns)
     }
 
     pub fn enter_world(&self, identity: &WorldIdentity, dim: i32) -> Result<(), RuntimeError> {

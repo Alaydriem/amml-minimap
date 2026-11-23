@@ -92,7 +92,7 @@ uses {
   }
   feature "block_changes" {
     event "world.block_changed" {
-      version  = 1
+      version  = 2
       required = true
     }
   }

@@ -68,6 +68,11 @@ impl BiomeKeyTable {
         Some(self.names.iter().map(|name| name.to_string()).collect())
     }
 
+    // the table ID and every name, once loaded
+    pub fn snapshot(&self) -> Option<(u64, Vec<String>)> {
+        self.loaded.then(|| (self.table_id, self.names.iter().map(|name| name.to_string()).collect()))
+    }
+
     pub fn mark_dirty(&mut self) {
         self.dirty = true;
     }
