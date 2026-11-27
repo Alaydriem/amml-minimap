@@ -3,23 +3,27 @@ use std::time::Instant;
 
 use amm_client::link::{FrameHandler, FrameInputView, FrameReply};
 use amm_core::structs::frame::{CursorShape, LayerKind};
-use egui::{Context, Rect};
+use egui::{Context, RawInput, Rect};
 use minimap_core::structs::draw::MapLayer;
 use minimap_runtime::services::Runtime;
 use minimap_runtime::structs::LayerInput;
 
+use crate::services::KeyFeed;
+
 // the manager calls this once per drawn layer on the render thread; it hands each pass to the runtime and
-// times the mod's share of each frame. `slot` holds the runtime once the session has made it
+// times the mod's share of each frame. `slot` holds the runtime once the session has made it; `keys` gives the
+// Overlay layer the key presses the manager cannot route to it
 pub struct MinimapFrameHandler {
     slot: Arc<OnceLock<Arc<Runtime>>>,
+    keys: Arc<KeyFeed>,
     // the frame time of the passes being summed, and their sum in microseconds
     frame_time: Option<f64>,
     frame_us: u32,
 }
 
 impl MinimapFrameHandler {
-    pub fn new(slot: Arc<OnceLock<Arc<Runtime>>>) -> Self {
-        Self { slot, frame_time: None, frame_us: 0 }
+    pub fn new(slot: Arc<OnceLock<Arc<Runtime>>>, keys: Arc<KeyFeed>) -> Self {
+        Self { slot, keys, frame_time: None, frame_us: 0 }
     }
 
     // both layers of one frame carry the same time; a new time closes the last frame's sum
@@ -54,10 +58,19 @@ impl FrameHandler for MinimapFrameHandler {
             time_secs: data.time_secs,
         };
         let reply = runtime.paint_layer(ctx, &pass);
+        if layer == MapLayer::Overlay {
+            self.keys.set_typing(ctx.egui_wants_keyboard_input());
+        }
         let pass_us = u32::try_from(started.elapsed().as_micros()).unwrap_or(u32::MAX);
         self.add_time(&runtime, data.time_secs, pass_us);
         let cursor = if reply.arrow_cursor { CursorShape::Arrow } else { CursorShape::Default };
         FrameReply { cursor, layer_rect: reply.rect }
+    }
+
+    fn adjust_input(&mut self, layer: LayerKind, raw: &mut RawInput) {
+        if layer == LayerKind::Overlay {
+            self.keys.drain_into(raw);
+        }
     }
 
     fn textures_lost(&mut self) {

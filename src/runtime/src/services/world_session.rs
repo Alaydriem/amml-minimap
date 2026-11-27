@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -17,11 +17,11 @@ use minimap_core::structs::layer::MapLayer;
 use minimap_core::structs::pos::{ChunkPos, RegionPos};
 use minimap_core::structs::tile::Tile;
 use minimap_core::traits::BakeEnvironment;
-use minimap_store::services::StoreService;
+use minimap_store::services::{FolderTurns, StoreService};
 use minimap_store::structs::{JournalRecord, StoreCommand, StoreEvent, StoreSettings};
 
 use crate::errors::RuntimeError;
-use crate::services::{BakePool, ExportService, JournalOutbox};
+use crate::services::{BakePool, ExportService, JournalOutbox, SessionFlush};
 use crate::structs::{BakeResult, BakedChunk, JournalAck, ProbeRequest, RuntimeStats, ScanPlan, Shared, SubmitStatus};
 
 // everything that lives for one world visit: schedule, dirty marks, store, bake threads
@@ -77,15 +77,18 @@ impl WorldSession {
         root: Option<PathBuf>,
         dim: i32,
         exports: Arc<ExportService>,
+        turns: &Arc<FolderTurns>,
+        keys: Option<(u64, Vec<String>)>,
     ) -> Result<Self, RuntimeError> {
-        let store = StoreService::start(root.clone(), StoreSettings::new(&config.store))?;
+        let turn = root.as_deref().map(|root| turns.take(root));
+        let store = StoreService::start(root.clone(), StoreSettings::new(&config.store), turn)?;
         let pool = BakePool::new(
             config.bake.worker_threads.max(0) as usize,
             config.bake.queue_capacity as usize,
             Arc::clone(&shared),
         )?;
         shared.world_epoch.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
-        Self::open_biome_keys(&shared, &store, root.is_some());
+        Self::open_biome_keys(&shared, &store, root.is_some(), keys);
         Ok(Self {
             store,
             pool,
@@ -127,12 +130,28 @@ impl WorldSession {
         self.dim
     }
 
-    // with a disk cache the store loads the world's table (or starts one); without, a new table is used
-    fn open_biome_keys(shared: &Shared, store: &StoreService, cached: bool) {
+    pub fn root(&self) -> Option<&Path> {
+        self.root.as_deref()
+    }
+
+    // with a disk cache the store loads the world's table (or starts one); without, a new table is used. A table
+    // handed in (the one of this folder's world just left, whose flush may still run) is used as it is and saved
+    // again as the store's first command, never loaded as well: a load would replace keys given before it came
+    fn open_biome_keys(shared: &Shared, store: &StoreService, cached: bool, seed: Option<(u64, Vec<String>)>) {
         let mut keys = Shared::lock(&shared.biome_keys);
         keys.clear();
-        if !cached || store.send(StoreCommand::LoadBiomeKeys).is_err() {
-            keys.mark_loaded(Self::new_table_id(), Vec::new());
+        match seed {
+            Some((table_id, names)) if cached => {
+                keys.mark_loaded(table_id, names.clone());
+                if store.send(StoreCommand::WriteBiomeKeys { table_id, names }).is_err() {
+                    keys.mark_dirty();
+                }
+            }
+            _ => {
+                if !cached || store.send(StoreCommand::LoadBiomeKeys).is_err() {
+                    keys.mark_loaded(Self::new_table_id(), Vec::new());
+                }
+            }
         }
     }
 
@@ -349,8 +368,9 @@ impl WorldSession {
         }
     }
 
-    // journals every chunk that is still dirty, then stops the bake threads and the store
-    pub fn finish(mut self) {
+    // stops the bake threads and gathers every chunk that is still journal-dirty; the store work that follows is
+    // returned, to run off the game thread
+    pub fn finish(mut self) -> SessionFlush {
         let mut pending = Vec::new();
         self.pool.finish(Self::SHUTDOWN, |result| pending.push(result));
         let shared = Arc::clone(&self.shared);
@@ -360,32 +380,17 @@ impl WorldSession {
             }
             chunks.drain_journal_dirty(&mut self.evicted);
         }
-        // the table goes first and is never dropped: the records below may use its newest keys
         let keys = {
             let mut table = Shared::lock(&self.shared.biome_keys);
             let table_id = table.table_id();
             table.take_dirty().map(|names| (table_id, names))
         };
-        if let Some((table_id, names)) = keys
-            && self.store.send(StoreCommand::WriteBiomeKeys { table_id, names }).is_err()
-        {
-            curia::warn!("the store stopped before the biome key table was saved");
-        }
         let mut records = self.outbox.take_all();
         for evicted in std::mem::take(&mut self.evicted) {
             records.push(Box::new(JournalRecord::new(evicted.pos, self.shared.settings_hash, evicted.surface, None)));
         }
-        for record in records {
-            if self.store.send(StoreCommand::Append { record, token: StoreCommand::NO_ACK }).is_err() {
-                curia::warn!("the store stopped before every chunk was journaled");
-                break;
-            }
-        }
-        let report = self.store.shutdown(Self::SHUTDOWN);
-        if !report.finished {
-            curia::warn!("the store did not finish in time", { timeout_ms: Self::SHUTDOWN.as_millis() as u64 });
-        }
         self.shared.world_epoch.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        SessionFlush::new(self.store, keys, records)
     }
 
     fn apply_pending(&mut self, chunks: &mut ChunkStore) {

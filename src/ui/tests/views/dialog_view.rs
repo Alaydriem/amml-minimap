@@ -39,6 +39,19 @@ fn a_name_typed_then_enter_in_one_frame_saves_the_whole_name() {
 }
 
 #[test]
+fn a_typo_corrected_with_backspace_then_enter_saves_the_corrected_name() {
+    let mut scene = Scene::new(false);
+    open_dialog(&mut scene, GROUND);
+
+    scene.frame((1200.0, 700.0), false, &[HarnessEvent::Text('B'), HarnessEvent::Text('x')]);
+    scene.frame((1200.0, 700.0), false, &[key(0x08)]);
+    scene.frame((1200.0, 700.0), false, &[HarnessEvent::Text('a'), key(0x0D)]);
+
+    assert!(scene.actions.contains(&MapAction::SaveDialog), "{:?}", scene.actions);
+    assert_eq!(scene.painter.drafts().name, "Ba");
+}
+
+#[test]
 fn escape_cancels_the_dialog() {
     let mut scene = Scene::new(false);
     open_dialog(&mut scene, GROUND);

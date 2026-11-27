@@ -1,103 +1,155 @@
-use std::collections::BTreeSet;
-
 use alaydriem_minimap::MinimapMod;
-use alaydriem_minimap::types::{MinimapEntry, MinimapFeature};
-use amml_game::{EntryId, GameError, MaterialLayout};
-use amml_sdk::AmmlMod;
+use amm_client::link::LinkUses;
+use amm_client::test_support::FakeTable;
+use amml_api::amml_abi::{AmmlDirKind, ClientTick, WorldLeft};
+use amml_api::testing::{FakeClient, FakeGame};
+use amml_api::{AmmlMod, BlockPos, BlockTypeId};
+use tempfile::TempDir;
 
-use crate::support::{FakeResolver, FakeWorld};
+use crate::support::{FakeTerrain, MinimapRig};
 
-#[test]
-fn without_any_minimap_entry_every_feature_is_off_with_one_line_each() {
-    let entries = MinimapMod::resolve(&FakeResolver::new(&FakeWorld::required())).unwrap();
+const MANIFEST: &str = include_str!("../amml.hcl");
 
-    let off: BTreeSet<&str> = entries.off_features().into_iter().map(|(feature, _)| feature).collect();
-    let lines = MinimapMod::off_lines(&entries);
+// the minimap enabled on a fake game with a player in a loaded world
+struct ModRig {
+    game: FakeGame,
+    _dir: TempDir,
+}
 
-    assert_eq!(off, MinimapFeature::ALL.into_iter().collect());
-    assert_eq!(lines.len(), 5);
-    for feature in MinimapFeature::ALL {
-        assert_eq!(lines.iter().filter(|line| line.starts_with(feature)).count(), 1, "{feature}: {lines:?}");
+impl ModRig {
+    fn new(manager: bool) -> Self {
+        let game = MinimapRig::game();
+        let dir = tempfile::tempdir().unwrap();
+        game.set_dir(AmmlDirKind::DATA, &dir.path().display().to_string());
+        game.set_client(MinimapRig::player(0, FakeTerrain::world(&[(0, 0)])));
+        if manager {
+            FakeTable::provide(&game.ctx()).unwrap();
+        }
+        game.load::<MinimapMod>().unwrap();
+        game.enable::<MinimapMod>().unwrap();
+        Self { game, _dir: dir }
+    }
+
+    fn tick(&self) {
+        MinimapRig::tick(&self.game);
+    }
+
+    fn logged(&self, line: &str) -> bool {
+        self.game.logs().iter().any(|logged| logged == line)
     }
 }
 
 #[test]
-fn a_missing_required_entry_refuses_the_enable() {
-    let values: Vec<_> =
-        FakeWorld::required().into_iter().filter(|(id, _)| *id != EntryId::LEVEL_CHUNK_GET_BLOCK).collect();
-
-    let result = MinimapMod::resolve(&FakeResolver::new(&values));
-
-    assert!(matches!(result, Err(GameError::MissingEntry { id }) if id == "LevelChunk.getBlock"));
+fn link_uses_are_complete_and_every_row_is_required() {
+    assert_eq!(LinkUses::check(&MinimapMod::USES), Ok(()));
+    assert!(MinimapMod::USES.rows().iter().all(|row| row.required != 0));
 }
 
 #[test]
-fn a_listener_slot_outside_the_table_turns_block_changes_off() {
-    let mut values = FakeWorld::required();
-    values.extend(
-        FakeWorld::optional()
-            .into_iter()
-            .map(|(id, value)| if id.as_str() == "BlockSourceListener.onBlockChanged" { (id, 9) } else { (id, value) }),
-    );
-    let entries = MinimapMod::resolve(&FakeResolver::new(&values)).unwrap();
-
-    let lines = MinimapMod::off_lines(&entries);
-
-    assert!(lines.iter().any(|line| line.starts_with(MinimapFeature::BLOCK_CHANGES) && line.contains("slot 9")));
+fn the_manifest_names_the_mod_and_lists_no_entries() {
+    assert!(MANIFEST.contains("namespace   = \"alaydriem\""));
+    assert!(MANIFEST.contains("name        = \"minimap\""));
+    assert!(MANIFEST.contains("api_version = 3"));
+    assert!(!MANIFEST.contains("entries"));
+    assert!(!MANIFEST.contains("amml_version"));
 }
 
 #[test]
-fn a_missing_connection_destructor_keeps_the_server_identity_on_with_one_line() {
-    let destructor = MinimapEntry::GAME_CONNECTION_INFO_DTOR;
-    let values: Vec<_> =
-        FakeWorld::required().into_iter().chain(FakeWorld::optional()).filter(|(id, _)| *id != destructor).collect();
-    let entries = MinimapMod::resolve(&FakeResolver::new(&values)).unwrap();
+fn the_manifest_uses_block_is_the_uses_of_the_mod() {
+    let manifest = MANIFEST.replace("\r\n", "\n");
 
-    let lines = MinimapMod::off_lines(&entries);
-
-    assert!(MinimapFeature::is_on(&entries, MinimapFeature::SERVER_IDENTITY));
-    assert_eq!(lines.iter().filter(|line| line.contains(destructor.as_str())).count(), 1, "{lines:?}");
-    assert!(!lines.iter().any(|line| line.starts_with(MinimapFeature::SERVER_IDENTITY)), "{lines:?}");
-}
-
-// the fake world with its block-material layout entry replaced by `material`
-fn with_material(material: &[(EntryId, u64)]) -> Vec<(EntryId, u64)> {
-    let mut values: Vec<_> =
-        FakeWorld::required().into_iter().filter(|(id, _)| *id != EntryId::BLOCK_TYPE_MATERIAL_INLINE).collect();
-    values.extend_from_slice(material);
-    values
+    assert_eq!(manifest.matches(&MinimapMod::USES.to_hcl()).count(), 1);
+    assert_eq!(MinimapMod::USES.write_into(&manifest), manifest);
 }
 
 #[test]
-fn the_pointer_material_layout_enables_without_a_material_line() {
-    let values = with_material(&[(EntryId::BLOCK_TYPE_MATERIAL_INLINE, 0)]);
-    let entries = MinimapMod::resolve(&FakeResolver::new(&values)).unwrap();
+fn with_the_manager_the_first_tick_links_and_enters_the_world() {
+    let rig = ModRig::new(true);
 
-    assert!(matches!(MaterialLayout::of(&entries), Ok(MaterialLayout::Pointer)));
-    assert!(!MinimapMod::off_lines(&entries).iter().any(|line| line.contains("block_material")));
+    rig.tick();
+
+    assert!(rig.logged("info minimap block changes on"));
+    assert!(rig.logged("info minimap linked"));
+    assert!(rig.logged("info minimap world entered dimension=0"));
+    rig.game.disable::<MinimapMod>();
 }
 
 #[test]
-fn the_value_material_layout_enables() {
-    let values = with_material(&[(EntryId::BLOCK_TYPE_MATERIAL_INLINE, 1)]);
-    let entries = MinimapMod::resolve(&FakeResolver::new(&values)).unwrap();
+fn without_the_manager_the_minimap_waits_and_enters_nothing() {
+    let rig = ModRig::new(false);
 
-    assert!(matches!(MaterialLayout::of(&entries), Ok(MaterialLayout::Value)));
-}
-
-#[test]
-fn an_unknown_or_missing_material_layout_refuses_the_enable() {
-    for material in [&[(EntryId::BLOCK_TYPE_MATERIAL_INLINE, 2)][..], &[]] {
-        let result = MinimapMod::resolve(&FakeResolver::new(&with_material(material)));
-
-        assert!(matches!(result, Err(GameError::EntrySet { .. })), "{material:?}");
+    for _ in 0..5 {
+        rig.tick();
     }
+
+    assert!(!rig.logged("info minimap linked"));
+    assert!(!rig.logged("info minimap world entered dimension=0"));
+    rig.game.disable::<MinimapMod>();
 }
 
 #[test]
-fn the_mod_id_is_the_namespaced_module_string() {
-    assert_eq!(MinimapMod::NAMESPACE, "alaydriem");
-    assert_eq!(MinimapMod::NAME, "minimap");
-    assert_eq!(MinimapMod::id(), MinimapMod::MODULE);
-    assert_eq!(MinimapMod::MODULE, "@alaydriem/minimap");
+fn a_world_leave_event_leaves_the_world() {
+    let rig = ModRig::new(true);
+    rig.tick();
+
+    rig.game.raise(&mut WorldLeft { header: FakeGame::header::<WorldLeft>(), epoch: 0 });
+
+    assert!(rig.logged("info minimap world left"));
+    rig.game.disable::<MinimapMod>();
+}
+
+#[test]
+fn a_type_change_reads_its_column_and_a_same_type_change_is_skipped() {
+    let rig = ModRig::new(true);
+    for _ in 0..3 {
+        rig.tick();
+    }
+
+    rig.game.raise_block_changed(0, BlockPos { x: 4, y: 64, z: 2 }, 0, BlockTypeId(1), BlockTypeId(1));
+    rig.game.raise_block_changed(0, BlockPos { x: 3, y: 64, z: 2 }, 0, FakeTerrain::SAND, FakeTerrain::STONE);
+    rig.tick();
+
+    let columns: Vec<String> =
+        rig.game.logs().into_iter().filter(|line| line.starts_with("info minimap block change column")).collect();
+    assert_eq!(columns, vec!["info minimap block change column x=3 z=2"]);
+    rig.game.disable::<MinimapMod>();
+}
+
+#[test]
+fn disable_gives_the_cursor_back_then_leaves_the_manager() {
+    let rig = ModRig::new(true);
+    rig.tick();
+    assert_eq!(rig.game.window_requests(), vec!["clip_cursor centre"]);
+
+    rig.game.disable::<MinimapMod>();
+
+    assert_eq!(rig.game.window_requests(), vec!["clip_cursor centre", "clip_cursor none"]);
+    assert!(rig.logged("info minimap cursor clip off reason=disabled"));
+    assert!(FakeTable::calls().contains(&"unregister"));
+}
+
+#[test]
+fn a_menu_drops_the_cursor_clip() {
+    let rig = ModRig::new(true);
+    rig.tick();
+
+    rig.game
+        .set_client(FakeClient { mouse_captured: Some(false), ..MinimapRig::player(0, FakeTerrain::world(&[(0, 0)])) });
+    rig.tick();
+
+    assert_eq!(rig.game.window_requests(), vec!["clip_cursor centre", "clip_cursor none"]);
+    assert!(rig.logged("info minimap cursor clip off reason=mouse_free"));
+    rig.game.disable::<MinimapMod>();
+}
+
+#[test]
+fn a_refused_required_listen_fails_enable() {
+    let game = MinimapRig::game();
+    let dir = tempfile::tempdir().unwrap();
+    game.set_dir(AmmlDirKind::DATA, &dir.path().display().to_string());
+    game.refuse_listen::<ClientTick>();
+    game.load::<MinimapMod>().unwrap();
+
+    assert!(game.enable::<MinimapMod>().is_err());
+    assert!(game.logs().iter().any(|line| line.starts_with("error minimap off")), "{:?}", game.logs());
 }

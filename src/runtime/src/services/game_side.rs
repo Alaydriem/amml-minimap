@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use minimap_core::config::{Config, ConfigMerge};
 use minimap_core::errors::WaypointError;
@@ -9,11 +9,11 @@ use minimap_core::structs::chunk::{ChunkProbe, ColumnSample};
 use minimap_core::structs::input::{KeyResult, KeybindInput};
 use minimap_core::structs::pos::ChunkPos;
 use minimap_core::structs::settings::{SettingValue, SettingWrite};
-use minimap_store::services::{CachePaths, StoreService};
+use minimap_store::services::{CachePaths, FolderTurns, StoreService};
 use minimap_store::structs::{StoreCommand, StoreEvent, StoreSettings, WorldIdentity};
 
 use crate::errors::RuntimeError;
-use crate::services::{ExportService, WaypointSync, WorldSession};
+use crate::services::{ExportService, WaypointSync, WorldFlushes, WorldSession};
 use crate::structs::{
     CursorAction, PendingSettings, ProbeRequest, RuntimePaths, RuntimeStats, ScanPlan, Shared, SubmitStatus, TickInput,
 };
@@ -34,6 +34,12 @@ pub struct GameSide {
     pending: PendingSettings,
     // the manager's latest config; its world settings apply when the next world starts
     next_world: Option<Config>,
+    // the writer order of the world cache folders
+    turns: Arc<FolderTurns>,
+    // the store work of worlds that were left, still running
+    flushes: WorldFlushes,
+    // the cache folder and biome key table of the world left last; the next session of that folder starts with it
+    left_keys: Option<(std::path::PathBuf, u64, Vec<String>)>,
 }
 
 impl GameSide {
@@ -45,8 +51,9 @@ impl GameSide {
         config: Config,
         paths: RuntimePaths,
         exports: Arc<ExportService>,
+        turns: Arc<FolderTurns>,
     ) -> Result<Self, RuntimeError> {
-        let config_store = StoreService::start(None, StoreSettings::new(&config.store))?;
+        let config_store = StoreService::start(None, StoreSettings::new(&config.store), None)?;
         let game = Self {
             input: InputController::new(&config),
             waypoints: WaypointSync::new(Arc::clone(&shared)),
@@ -60,6 +67,9 @@ impl GameSide {
             paths,
             session: None,
             config_store,
+            turns,
+            flushes: WorldFlushes::new(),
+            left_keys: None,
         };
         Ok(game)
     }
@@ -109,13 +119,25 @@ impl GameSide {
         self.layers.reset();
         self.shared.layer.store(dim, std::sync::atomic::Ordering::Relaxed);
         let exports = Arc::clone(&self.exports);
-        self.session = Some(WorldSession::start(Arc::clone(&self.shared), &self.config, root, dim, exports)?);
+        let keys = match self.left_keys.take() {
+            Some((left, table_id, names)) if root.as_ref() == Some(&left) => Some((table_id, names)),
+            _ => None,
+        };
+        self.session =
+            Some(WorldSession::start(Arc::clone(&self.shared), &self.config, root, dim, exports, &self.turns, keys)?);
         Ok(())
     }
 
+    // the session's store work goes to a flush thread; a later store of the same folder waits for it
     pub fn leave_world(&mut self) {
+        let started = Instant::now();
+        let handed_off = self.session.is_some();
         if let Some(session) = self.session.take() {
-            session.finish();
+            let root = session.root().map(std::path::Path::to_path_buf);
+            let flush = session.finish();
+            let table = Shared::lock(&self.shared.biome_keys).snapshot();
+            self.left_keys = root.zip(table).map(|(root, (table_id, names))| (root, table_id, names));
+            self.flushes.hand_off(flush, self.config.debug.telemetry);
         }
         self.waypoints.close(&self.config_store);
         self.exports.leave_world();
@@ -128,9 +150,14 @@ impl GameSide {
         Shared::lock(&self.shared.biome_keys).clear();
         Shared::lock(&self.shared.hover_biomes).clear();
         Shared::lock(&self.shared.player).present = false;
-        let mut view = Shared::lock(&self.shared.view);
-        view.world_map_open = false;
-        view.anchor = None;
+        {
+            let mut view = Shared::lock(&self.shared.view);
+            view.world_map_open = false;
+            view.anchor = None;
+        }
+        if handed_off {
+            self.flushes.report_leave(started.elapsed());
+        }
     }
 
     // the overlay switches of the tools block are saved like the coordinates switch
@@ -244,8 +271,10 @@ impl GameSide {
         self.session.as_ref().map_or_else(RuntimeStats::default, WorldSession::stats)
     }
 
+    // waits for the world flushes too, within their cap
     pub fn shutdown(&mut self) {
         self.leave_world();
+        self.flushes.wait_all(WorldFlushes::WAIT);
         self.config_store.shutdown(Self::SHUTDOWN);
     }
 

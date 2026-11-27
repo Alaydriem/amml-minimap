@@ -1,87 +1,92 @@
-use amml_game::{BlockSource, GameEntries, LevelChunk};
+use amml_api::{Area, BlockSource, ChunkLoad, ColumnRequest, ColumnSample as GameSample, Ctx, LevelChunk};
 use minimap_core::structs::chunk::{ChunkProbe, ColumnSample};
 use minimap_core::structs::pos::ChunkPos;
 use minimap_runtime::structs::SubmitStatus;
 
-use crate::services::{BiomeReader, ColumnWalker, MapColorReader};
+use crate::services::{BiomeNames, BlockNames, ColumnColors};
 use crate::traits::MapSink;
-use crate::types::ProbeSettings;
+use crate::types::ColorSource;
 
-// reads loaded game chunks into the probe layout the runtime takes; holds nothing beyond the plan's settings
+// reads loaded chunks through the loader into the probe layout the runtime takes. The walk, the game colours and
+// the biome ids are the loader's; this applies the scan plan's colour table and the void overrides. Game thread
 pub struct ColumnProbe {
-    colors: MapColorReader,
-    biomes: BiomeReader,
-    settings: ProbeSettings,
+    names: BlockNames,
+    biomes: BiomeNames,
+    // the loader writes one chunk's columns here; kept, so a probe allocates nothing
+    samples: Box<[GameSample; 256]>,
+    camera_y: i32,
+    transparent_water: bool,
+    // the loader serves the game's map colours
+    vanilla: bool,
+    // a bit per ColorSource met since the probe was made
+    sources: u8,
 }
 
 impl ColumnProbe {
-    // `vanilla`: the game's map colours can be read
-    pub fn new(vanilla: bool) -> Self {
-        Self { colors: MapColorReader::new(vanilla), biomes: BiomeReader::new(), settings: ProbeSettings::default() }
+    pub const DEFAULT_CAMERA_Y: i32 = 320;
+
+    pub fn new(ctx: &Ctx) -> Self {
+        Self {
+            names: BlockNames::new(ctx.blocks()),
+            biomes: BiomeNames::new(ctx.biomes()),
+            samples: Box::new([GameSample::default(); 256]),
+            camera_y: Self::DEFAULT_CAMERA_Y,
+            transparent_water: true,
+            vanilla: ctx.supports(Area::WORLD_MAP_COLOR),
+            sources: 0,
+        }
     }
 
     // the camera height and transparent water of the latest scan plan
-    pub fn configure(&mut self, settings: ProbeSettings) {
-        self.settings = settings;
+    pub fn configure(&mut self, camera_y: i32, transparent_water: bool) {
+        self.camera_y = camera_y;
+        self.transparent_water = transparent_water;
     }
 
-    pub fn settings(&self) -> ProbeSettings {
-        self.settings
+    pub fn biomes(&mut self) -> &mut BiomeNames {
+        &mut self.biomes
     }
 
-    pub fn biomes(&self) -> &BiomeReader {
-        &self.biomes
+    // whether a shown column has taken its colour from `source` since the probe was made
+    pub fn met(&self, source: ColorSource) -> bool {
+        self.sources & Self::bit(source) != 0
     }
 
-    // the chunk at `pos` when the game has it fully loaded. Game thread
-    pub fn loaded_chunk<'e>(region: &BlockSource<'e>, pos: ChunkPos) -> Option<LevelChunk<'e>> {
-        let chunk = region.chunk(pos.x, pos.z)?;
-        chunk.loaded().then_some(chunk)
-    }
-
-    // fills `out` (zeroed by the caller) with the chunk at `pos`. Not loaded: nothing read past the load state.
-    // No sub-chunks, or a top sub-chunk still the client's placeholder: nothing read past the sub-chunk list.
-    // Game thread
+    // fills `out` (zeroed by the caller) with the chunk at `pos`
     pub fn probe_chunk<S: MapSink>(
-        &self,
-        entries: &GameEntries,
-        region: &BlockSource<'_>,
+        &mut self,
+        source: &BlockSource<'_>,
         pos: ChunkPos,
         sink: &S,
         out: &mut ChunkProbe,
     ) -> SubmitStatus {
-        let Some(chunk) = Self::loaded_chunk(region, pos) else { return SubmitStatus::NotLoaded };
-        let count = chunk.sub_chunk_count();
-        if count == 0 {
-            return SubmitStatus::TopPlaceholder;
+        let Some(chunk) = source.chunk(pos.x, pos.z) else { return SubmitStatus::NotLoaded };
+        match chunk.load_state() {
+            Some(ChunkLoad::Loaded) => {}
+            Some(ChunkLoad::TopPlaceholder) => return SubmitStatus::TopPlaceholder,
+            Some(ChunkLoad::NotLoaded) | None => return SubmitStatus::NotLoaded,
         }
-        if chunk.sub_chunk(count - 1).and_then(|top| top.is_placeholder()) != Some(false) {
-            return SubmitStatus::TopPlaceholder;
+        let request = ColumnRequest { columns: [u64::MAX; 4], ..self.request() };
+        if !self.read(&chunk, &request) {
+            return SubmitStatus::NotProbed;
         }
-        let Some(min_y) = chunk.min_y() else { return SubmitStatus::NotProbed };
         for index in 0..256 {
-            if Self::surface_pending(&chunk, index, count) {
+            let sample = self.samples[index];
+            if sample.skipped() {
                 out.surface.set_skipped(index, true);
                 continue;
             }
-            let Some(sample) = self.sample(entries, &chunk, index, min_y, sink) else {
-                out.surface.set_skipped(index, true);
-                continue;
-            };
-            out.surface.surface[index] = sample.surface;
-            out.surface.water[index] = sample.water;
-            out.surface.height[index] = sample.height;
-            out.surface.solid[index] = sample.solid;
-            out.surface.set_retry(index, sample.retry);
-            out.biome_ids[index] = sample.biome_id;
+            let column = self.convert(&sample, sink);
+            out.surface.write_column(index, column);
+            out.biome_ids[index] = column.biome_id;
         }
         SubmitStatus::Loaded
     }
 
-    // one column of the chunk at `pos`; `None` when the chunk is not loaded or `index >= 256`. Game thread
+    // one column (`index`, `z * 16 + x`) of the chunk at `pos`; `None` when the chunk is not loaded, the column was
+    // not read or `index` is 256 or more
     pub fn probe_column<S: MapSink>(
-        &self,
-        entries: &GameEntries,
+        &mut self,
         source: &BlockSource<'_>,
         pos: ChunkPos,
         index: usize,
@@ -90,52 +95,44 @@ impl ColumnProbe {
         if index >= 256 {
             return None;
         }
-        let chunk = Self::loaded_chunk(source, pos)?;
-        let min_y = chunk.min_y()?;
-        self.sample(entries, &chunk, index, min_y, sink)
+        let chunk = source.chunk(pos.x, pos.z)?;
+        if chunk.load_state()? != ChunkLoad::Loaded {
+            return None;
+        }
+        let one = ColumnRequest::one((index % 16) as u8, (index / 16) as u8, self.camera_y);
+        let request = ColumnRequest { columns: one.columns, ..self.request() };
+        if !self.read(&chunk, &request) {
+            return None;
+        }
+        let sample = self.samples[index];
+        (!sample.skipped()).then(|| self.convert(&sample, sink))
     }
 
-    // the chunk's biome names for the plan's requests, from the column probe just made
-    pub fn name_biomes<S: MapSink>(
-        &self,
-        entries: &GameEntries,
-        region: &BlockSource<'_>,
-        pos: ChunkPos,
-        probe: &ChunkProbe,
-        requests: &[u16],
-        sink: &mut S,
-    ) {
-        if requests.is_empty() {
-            return;
-        }
-        if let Some(chunk) = Self::loaded_chunk(region, pos) {
-            self.biomes.answer_chunk(entries, &chunk, &probe.biome_ids, requests, sink);
+    fn request(&self) -> ColumnRequest {
+        ColumnRequest {
+            camera_y: self.camera_y,
+            transparent_water: self.transparent_water,
+            vanilla_colors: self.vanilla,
+            columns: [0; 4],
         }
     }
 
-    fn sample<S: MapSink>(
-        &self,
-        entries: &GameEntries,
-        chunk: &LevelChunk<'_>,
-        index: usize,
-        min_y: i32,
-        sink: &S,
-    ) -> Option<ColumnSample> {
-        let (x, z) = ((index % 16) as u8, (index / 16) as u8);
-        let column = ColumnWalker::new(chunk, entries, &self.colors, sink, x, z)?.walk(self.settings);
-        let height = (i32::from(chunk.height(index)?) + min_y) as i16;
-        let solid = (i32::from(chunk.render_height(index)?) + min_y) as i16;
-        let biome = self.biomes.surface_id(entries, chunk, index);
-        Some(ColumnSample::new(column.colour.packed(), column.water_word(), height, solid, column.retry, biome))
+    fn read(&mut self, chunk: &LevelChunk<'_>, request: &ColumnRequest) -> bool {
+        chunk.read_columns(request, &mut self.samples).is_some()
     }
 
-    // the column's surface sub-chunk is still a placeholder: the client has not received it yet
-    fn surface_pending(chunk: &LevelChunk<'_>, index: usize, count: usize) -> bool {
-        if count == 0 {
-            return true;
+    fn convert<S: MapSink>(&mut self, sample: &GameSample, sink: &S) -> ColumnSample {
+        let (column, source) = ColumnColors::convert(sample, self.vanilla, &mut self.names, &mut self.biomes, sink);
+        self.sources |= Self::bit(source);
+        column
+    }
+
+    fn bit(source: ColorSource) -> u8 {
+        match source {
+            ColorSource::Table => 1,
+            ColorSource::Vanilla => 2,
+            ColorSource::Fallback => 4,
+            ColorSource::None => 8,
         }
-        let height = i32::from(chunk.height(index).unwrap_or(0));
-        let sub = (height >> 4).min(count as i32 - 1);
-        sub >= 0 && chunk.sub_chunk(sub as usize).and_then(|sub| sub.is_placeholder()) == Some(true)
     }
 }

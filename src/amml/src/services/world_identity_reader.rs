@@ -1,25 +1,19 @@
 use std::cell::Cell;
-use std::ffi::c_void;
 use std::path::{Path, PathBuf};
-use std::ptr::NonNull;
 
-use amml_game::{ClientInstance, GameEntries};
-use amml_msvc::MsvcHeap;
+use amml_api::{ConnectionKind, WorldInfo};
+use minimap_os::services::ProcessProbe;
 use minimap_store::structs::WorldIdentity;
 
-use crate::game::{DbStorage, GameConnectionInfo, Level};
-use crate::services::ProcessProbe;
-
-// names the world the player entered, which keys its cache. The connection info is read first: a remote
-// connection is a server, whatever storage is seen. A local world is cached under
-// `<world>/@alaydriem/minimap/data`; an old LeviLamina cache is not read. A server is named by host, port and seed; a
-// world with neither (the world folder feature is off, or no storage was seen) is `local/S<seed>` under the data
-// folder. Without a seed such a world cannot be told from another, so it gets a folder of its own for this entry
-// only, `local/unseeded-<process>-<n>`, which a later start removes once that process has ended
+// names the world the player entered, which keys its cache. The connection is read first: a remote connection is a
+// server, whatever storage folder is seen. A local world is cached under `<world>/@alaydriem/minimap/data`. A server
+// is named by host, port and the low 32 bits of the seed; a world with neither is `local/S<seed>` under the data
+// folder. Without a seed (the loader gives 0 when the game has none) such a world cannot be told from another, so it
+// gets a folder of its own for this entry only, `local/unseeded-<process>-<n>`, which a later start removes once
+// that process has ended
 pub struct WorldIdentityReader {
     data_dir: PathBuf,
-    heap: Option<MsvcHeap>,
-    // world entries keyed without a seed in this tracker
+    // world entries keyed without a seed by this reader
     unseeded: Cell<u32>,
 }
 
@@ -30,50 +24,46 @@ impl WorldIdentityReader {
     pub const LOCAL: &'static str = "local";
     pub const UNSEEDED_PREFIX: &'static str = "unseeded-";
 
-    // `heap` frees the strings of the game's connection info; without it the server identity is not read
-    pub fn new(data_dir: &Path, heap: Option<MsvcHeap>) -> Self {
-        Self { data_dir: data_dir.to_path_buf(), heap, unseeded: Cell::new(0) }
+    pub fn new(data_dir: &Path) -> Self {
+        Self { data_dir: data_dir.to_path_buf(), unseeded: Cell::new(0) }
     }
 
-    // `storage` is the live DBStorage of the open local world, if any; it names the world only when the connection
-    // is not remote. Game thread
-    #[allow(unsafe_code)]
-    pub fn read(
-        &self,
-        entries: &GameEntries,
-        client: &ClientInstance<'_>,
-        level: Option<&Level<'_>>,
-        storage: Option<NonNull<c_void>>,
-    ) -> WorldIdentity {
-        let known_seed = level.and_then(|level| level.seed());
-        let seed = known_seed.unwrap_or(0);
-        // the connection comes first, as in LeviLamina's ServerInfo: a stale or foreign storage pointer must never
-        // put a server's map into a local world's folder
-        // SAFETY: the wrapper holds a live ClientInstance
-        let connection = unsafe { GameConnectionInfo::from_raw(client.as_ptr(), entries) };
-        let address = self.heap.as_ref().zip(connection).and_then(|(heap, connection)| connection.read(heap));
-        if let Some(address) = address.filter(|address| address.is_remote()) {
-            return WorldIdentity::Remote { host: address.host, port: address.port, seed };
-        }
-        // SAFETY: the caller passes the live DBStorage the storage detours hold, or nothing
-        let storage = storage.and_then(|storage| unsafe { DbStorage::from_raw(storage.as_ptr(), entries) });
-        if let Some(folder) = storage.and_then(|storage| storage.full_path()).filter(|folder| !folder.is_empty()) {
-            return WorldIdentity::Local {
-                world_dir: PathBuf::from(folder)
-                    .join(Self::NAMESPACE_FOLDER)
-                    .join(Self::MOD_FOLDER)
-                    .join(Self::DATA_FOLDER),
+    // `info`: the loader's facts of the joined world, `None` when it gives none
+    pub fn read(&self, info: Option<&WorldInfo>) -> WorldIdentity {
+        let seed = info.and_then(|info| info.seed).filter(|seed| *seed != 0);
+        let remote = info
+            .and_then(|info| info.connection.as_ref())
+            .filter(|connection| connection.kind == ConnectionKind::Remote && !connection.host.is_empty());
+        if let Some(connection) = remote {
+            return WorldIdentity::Remote {
+                host: connection.host.clone(),
+                port: connection.port,
+                seed: Self::low_bits(seed.unwrap_or(0)),
             };
         }
-        let folder = match known_seed {
-            Some(seed) => format!("S{seed}"),
+        let folder = info.and_then(|info| info.storage_folder.as_ref()).filter(|folder| !folder.as_os_str().is_empty());
+        if let Some(folder) = folder {
+            return WorldIdentity::Local {
+                world_dir: folder.join(Self::NAMESPACE_FOLDER).join(Self::MOD_FOLDER).join(Self::DATA_FOLDER),
+            };
+        }
+        let name = match seed {
+            Some(seed) => format!("S{}", Self::low_bits(seed)),
             None => {
                 let entry = self.unseeded.get();
                 self.unseeded.set(entry.wrapping_add(1));
                 format!("{}{}-{entry}", Self::UNSEEDED_PREFIX, std::process::id())
             }
         };
-        WorldIdentity::Local { world_dir: self.data_dir.join(Self::LOCAL).join(folder) }
+        WorldIdentity::Local { world_dir: self.data_dir.join(Self::LOCAL).join(name) }
+    }
+
+    // whether `identity` keeps its cache in the world's own folder
+    pub fn from_world_folder(&self, identity: &WorldIdentity) -> bool {
+        match identity {
+            WorldIdentity::Local { world_dir } => !world_dir.starts_with(self.data_dir.join(Self::LOCAL)),
+            WorldIdentity::Remote { .. } => false,
+        }
     }
 
     // removes the `local/unseeded-<pid>-<n>` folders under `data_dir` whose process is no longer running. The
@@ -90,6 +80,11 @@ impl WorldIdentityReader {
                 curia::warn!("an unseeded world cache was not removed", { error: error.to_string() });
             }
         }
+    }
+
+    // the cache names keep the 32-bit seed the game gave before the 64-bit seed was read
+    fn low_bits(seed: u64) -> u32 {
+        (seed & u64::from(u32::MAX)) as u32
     }
 
     // the process id in a folder name `unseeded-<pid>-<n>`

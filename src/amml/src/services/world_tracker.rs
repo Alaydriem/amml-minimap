@@ -1,77 +1,53 @@
-use std::ffi::c_void;
 use std::path::Path;
-use std::ptr::NonNull;
-use std::sync::Arc;
 
-use amml_game::{Actor, BlockSource, ClientInstance, GameEntries};
-use amml_msvc::MsvcHeap;
+use amml_api::{BlockSource, Client, ColumnSample as GameSample, Ctx, Window};
 use bytemuck::Zeroable;
 use minimap_core::structs::chunk::ChunkProbe;
 use minimap_core::structs::view::PlayerSnapshot;
+use minimap_os::services::MemoryInfo;
 use minimap_runtime::structs::{ProbeRequest, ScanPlan, SubmitStatus, TickInput};
+use minimap_store::structs::WorldIdentity;
 
-use crate::game::{Level, ListenerSource};
-use crate::services::{
-    BlockListener, ColumnProbe, CursorClip, GameWindow, ListenerHub, MemoryInfo, WorldIdentityReader, WorldStorage,
-};
+use crate::services::{BlockChangeQueue, ColumnProbe, CursorClip, MinimapLog, WorldIdentityReader};
 use crate::traits::MapSink;
-use crate::types::{BlockChange, ListenerSlots, MinimapFeature, ProbeSettings};
+use crate::types::{ColorSource, QueuedColumn};
 
-// follows the player in and out of worlds and dimensions, ticks the minimap and probes its scan plan. Every call
-// is for the game thread
+// follows the player in and out of worlds and dimensions, ticks the minimap, probes its scan plan and reads the
+// columns block changes asked for. Every call is for the game thread
 pub struct WorldTracker<S: MapSink> {
-    entries: Arc<GameEntries>,
     sink: S,
     probe: ColumnProbe,
     identity: WorldIdentityReader,
-    storage: &'static WorldStorage,
-    hub: &'static ListenerHub,
-    heap: Option<MsvcHeap>,
-    // the listener's base table and slots; None while the block changes feature is off
-    listener_slots: Option<(u64, ListenerSlots)>,
-    // made at the first registration, on the game heap
-    listener: Option<BlockListener>,
-    window: GameWindow,
+    window: Window,
     cursor: CursorClip,
     memory: MemoryInfo,
+    log: MinimapLog,
+    changes: BlockChangeQueue,
     plan: ScanPlan,
     staging: Box<ChunkProbe>,
     in_world: bool,
     dimension: i32,
+    // the loaded chunks read in this world
+    loaded: u64,
 }
 
 impl<S: MapSink> WorldTracker<S> {
-    pub fn new(
-        entries: GameEntries,
-        sink: S,
-        hub: &'static ListenerHub,
-        heap: Option<MsvcHeap>,
-        data_dir: &Path,
-        storage: &'static WorldStorage,
-    ) -> Self {
-        let vanilla = MinimapFeature::is_on(&entries, MinimapFeature::VANILLA_COLORS);
-        let listener_slots = if MinimapFeature::is_on(&entries, MinimapFeature::BLOCK_CHANGES) {
-            BlockListener::slots(&entries).filter(|(_, slots)| BlockListener::check(slots).is_ok())
-        } else {
-            None
-        };
+    // `data_dir`: where the caches of servers and unnamed worlds go
+    pub fn new(ctx: &Ctx, sink: S, data_dir: &Path) -> Self {
         Self {
-            entries: Arc::new(entries),
             sink,
-            probe: ColumnProbe::new(vanilla),
-            identity: WorldIdentityReader::new(data_dir, heap),
-            storage,
-            hub,
-            heap,
-            listener_slots,
-            listener: None,
-            window: GameWindow::new(),
-            cursor: CursorClip::new(),
+            probe: ColumnProbe::new(ctx),
+            identity: WorldIdentityReader::new(data_dir),
+            window: ctx.window(),
+            cursor: CursorClip::new(ctx.window(), ctx.log()),
             memory: MemoryInfo::new(),
+            log: MinimapLog::new(ctx.log()),
+            changes: BlockChangeQueue::new(),
             plan: ScanPlan::default(),
             staging: Box::new(ChunkProbe::zeroed()),
             in_world: false,
             dimension: -1,
+            loaded: 0,
         }
     }
 
@@ -79,12 +55,12 @@ impl<S: MapSink> WorldTracker<S> {
         &self.sink
     }
 
-    pub fn in_world(&self) -> bool {
-        self.in_world
+    pub fn sink_mut(&mut self) -> &mut S {
+        &mut self.sink
     }
 
-    pub fn listener(&self) -> Option<&BlockListener> {
-        self.listener.as_ref()
+    pub fn in_world(&self) -> bool {
+        self.in_world
     }
 
     // gives the sink back, for the session's shutdown
@@ -92,142 +68,112 @@ impl<S: MapSink> WorldTracker<S> {
         self.sink
     }
 
-    // once per client update, after the game's own: world entry and exit, the minimap tick, the scan plan's probes
-    #[allow(unsafe_code)]
-    pub fn tick(&mut self, client: NonNull<c_void>) {
-        let entries = Arc::clone(&self.entries);
-        // SAFETY: the client update detour passes the live ClientInstance the game is updating
-        let Some(client) = (unsafe { ClientInstance::from_raw(client.as_ptr(), &entries) }) else { return };
-        let player = client.local_player().filter(|_| client.is_world_active());
+    // once per client tick, after the game's own update
+    pub fn tick(&mut self, client: &Client<'_>) {
+        let mouse = client.mouse_captured().unwrap_or(false);
+        let window = self.window.is_foreground();
+        // without the window read the window counts as in front
+        let foreground = window.unwrap_or(true);
+        let player = client.local_player().filter(|_| client.world_active() == Some(true));
         let Some(player) = player else {
             self.leave();
-            self.tick_without_player(&client);
+            self.tick_without_player(mouse, window);
             return;
         };
-        let (Some(pose), Some(dimension)) = (player.pose(), player.dimension().and_then(|d| d.id())) else {
-            self.tick_without_player(&client);
+        let eye = player.eye_position();
+        let rotation = player.rotation();
+        let dimension = player.dimension().and_then(|dimension| dimension.id());
+        let (Some(eye), Some(rotation), Some(dimension)) = (eye, rotation, dimension) else {
+            self.tick_without_player(mouse, window);
             return;
         };
         if !self.in_world {
-            self.enter(&entries, &client, &player, dimension);
-        } else if dimension != self.dimension || self.listener_lost() {
-            self.attach_listener(&entries, &player);
+            self.enter(client, dimension);
+        } else if dimension != self.dimension {
             self.dimension = dimension;
+            self.log.dimension(dimension);
         }
         let (working_set_bytes, private_bytes) = self.memory.sample();
-        let [x, y, z] = pose.pos;
         let input = TickInput {
-            player: PlayerSnapshot { present: true, x, y, z, yaw: pose.yaw, dim: dimension },
-            foreground: self.window.foreground(),
-            cursor_hidden: self.cursor.cursor_hidden(),
+            player: PlayerSnapshot { present: true, x: eye.x, y: eye.y, z: eye.z, yaw: rotation.yaw, dim: dimension },
+            foreground,
+            cursor_hidden: mouse,
             dead: player.is_alive() == Some(false),
-            mouse_grabbed: client.mouse_grabbed(),
+            mouse_grabbed: mouse,
             working_set_bytes,
             private_bytes,
         };
         let mut plan = std::mem::take(&mut self.plan);
         self.sink.tick(&input, &mut plan);
-        self.probe.configure(ProbeSettings::new(plan.camera_height, plan.transparent_water));
-        // SAFETY: the actor's level is live while the actor is
-        if let Some(level) = player.level().and_then(|level| unsafe { Level::from_raw(level.as_ptr(), &entries) }) {
-            self.probe.biomes().answer_registry(&level, &plan.biome_requests, &mut self.sink);
+        self.probe.configure(plan.camera_height, plan.transparent_water);
+        if let Some(source) = player.block_source() {
+            self.probe_plan(&source, &plan);
+            self.read_changes(&source, dimension);
         }
-        if let Some(region) = client.region() {
-            self.probe_plan(&entries, &region, &plan);
-        }
-        self.cursor.apply(plan.cursor, &mut self.window);
+        self.answer_biomes(&plan.biome_requests);
+        self.cursor.apply(plan.cursor, mouse, window);
         self.plan = plan;
     }
 
-    // a block of the registered source changed type: the minimap may ask for that one column. Game thread
-    #[allow(unsafe_code)]
-    pub fn block_changed(&mut self, change: &BlockChange) {
-        if !self.in_world {
-            return;
-        }
-        let entries = Arc::clone(&self.entries);
-        if Self::same_type(&entries, change) {
-            return;
-        }
-        // SAFETY: the game passes the live BlockSource that fired the change
-        let Some(source) = (unsafe { ListenerSource::from_raw(change.source, &entries) }) else { return };
-        let Some(dimension) = source.dimension_id() else { return };
-        let ProbeRequest::Column { pos, index } = self.sink.block_changed(change.pos.x, change.pos.z, dimension) else {
-            return;
-        };
-        // SAFETY: as above
-        let Some(region) = (unsafe { BlockSource::from_raw(change.source, &entries) }) else { return };
-        if let Some(sample) = self.probe.probe_column(&entries, &region, pos, index, &self.sink) {
-            self.sink.submit_column(pos, index, sample);
+    // a block of the player's dimension changed type: its column is read at the next tick
+    pub fn block_changed(&mut self, column: QueuedColumn) {
+        if self.in_world {
+            self.changes.push(column);
         }
     }
 
-    // stops listening, frees the listener once no source holds it, releases a cursor clip, and forgets the world,
-    // so a tracker made by the next enable enters it again with a new listener. Off the game thread with a source
-    // attached, the listener and its table stay allocated: the game thread may be about to call it through the
-    // listener list of the source, and a leak of about 90 bytes is the safe side
-    #[allow(unsafe_code)]
-    pub fn reset(&mut self, on_game_thread: bool) {
-        let attached = self.listener.as_ref().is_some_and(BlockListener::is_attached);
-        self.detach_listener();
-        if !on_game_thread && attached {
-            if self.listener.take().is_some() {
-                curia::info!(
-                    "disable ran off the game thread while a source held the block listener; the listener stays allocated"
-                );
-            }
-        } else if let (Some(listener), Some(heap)) = (self.listener.take(), self.heap.as_ref()) {
-            // SAFETY: the listener was allocated on `heap`; it was just removed from its source, or its source was
-            // destroyed, and reset runs after the hooks are gone
-            if unsafe { listener.release(heap) }.is_err() {
-                curia::warn!("the block listener is still held by a source and is not freed");
-            }
+    // the player left the world: the minimap leaves it now and gives the cursor back
+    pub fn leave(&mut self) {
+        if !self.in_world {
+            return;
         }
-        self.cursor.release();
+        self.sink.leave_world();
+        self.cursor.drop_clip("left");
+        self.changes.clear();
+        self.probe.biomes().clear();
+        self.log.world_left();
         self.in_world = false;
         self.dimension = -1;
     }
 
-    fn enter(&mut self, entries: &GameEntries, client: &ClientInstance<'_>, player: &Actor<'_>, dimension: i32) {
-        #[allow(unsafe_code)]
-        // SAFETY: the actor's level is live while the actor is
-        let level = player.level().and_then(|level| unsafe { Level::from_raw(level.as_ptr(), entries) });
-        let identity = self.identity.read(entries, client, level.as_ref(), self.storage.current());
+    // disable: gives the cursor back and leaves the world
+    pub fn reset(&mut self) {
+        self.cursor.drop_clip("disabled");
+        self.leave();
+    }
+
+    fn enter(&mut self, client: &Client<'_>, dimension: i32) {
+        let identity = self.identity.read(client.world_info().as_ref());
+        self.changes.clear();
+        self.probe.biomes().clear();
+        self.loaded = 0;
+        self.log.world_entered(dimension);
+        let kind = if matches!(identity, WorldIdentity::Remote { .. }) { "remote" } else { "local" };
+        self.log.world_named(kind, self.identity.from_world_folder(&identity));
         if let Err(error) = self.sink.enter_world(&identity, dimension) {
-            curia::error!("world not entered", { error: error.to_string() });
+            self.log.logger().error("minimap world not entered", &[("error", &error.to_string())]);
         }
-        self.attach_listener(entries, player);
         self.in_world = true;
         self.dimension = dimension;
     }
 
-    fn leave(&mut self) {
-        if !self.in_world {
-            return;
-        }
-        self.detach_listener();
-        self.sink.leave_world();
-        self.in_world = false;
-        self.dimension = -1;
-    }
-
     // out of a world the minimap still ticks with no player: it drains the manager's events and gives its leases
     // back
-    fn tick_without_player(&mut self, client: &ClientInstance<'_>) {
+    fn tick_without_player(&mut self, mouse: bool, window: Option<bool>) {
         let input = TickInput {
-            foreground: self.window.foreground(),
-            cursor_hidden: self.cursor.cursor_hidden(),
-            mouse_grabbed: client.mouse_grabbed(),
+            foreground: window.unwrap_or(true),
+            cursor_hidden: mouse,
+            mouse_grabbed: mouse,
             ..TickInput::default()
         };
         let mut plan = std::mem::take(&mut self.plan);
         self.sink.tick(&input, &mut plan);
-        self.cursor.apply(plan.cursor, &mut self.window);
+        self.cursor.apply(plan.cursor, mouse, window);
         self.plan = plan;
     }
 
     // probes the candidates in order and stops reading after `limit` loaded chunks
-    fn probe_plan(&mut self, entries: &GameEntries, region: &BlockSource<'_>, plan: &ScanPlan) {
+    fn probe_plan(&mut self, source: &BlockSource<'_>, plan: &ScanPlan) {
         let mut loaded = 0;
         for &pos in &plan.candidates {
             if loaded >= plan.limit {
@@ -235,56 +181,48 @@ impl<S: MapSink> WorldTracker<S> {
                 continue;
             }
             *self.staging = ChunkProbe::zeroed();
-            let status = self.probe.probe_chunk(entries, region, pos, &self.sink, &mut self.staging);
+            let status = self.probe.probe_chunk(source, pos, &self.sink, &mut self.staging);
             if status == SubmitStatus::Loaded {
                 loaded += 1;
-                self.probe.name_biomes(entries, region, pos, &self.staging, &plan.biome_requests, &mut self.sink);
             }
             self.sink.submit_chunk(pos, status, &self.staging);
         }
-    }
-
-    fn listener_lost(&self) -> bool {
-        self.listener.as_ref().is_some_and(|listener| !listener.is_attached())
-    }
-
-    #[allow(unsafe_code)]
-    fn attach_listener(&mut self, entries: &GameEntries, player: &Actor<'_>) {
-        if self.listener.is_none()
-            && let (Some((base, slots)), Some(heap)) = (self.listener_slots, self.heap.as_ref())
-        {
-            // SAFETY: `base` is the resolved BlockSourceListener table of 9 code pointers and `heap` the game heap
-            match unsafe { BlockListener::new(base, slots, self.hub, heap) } {
-                Ok(listener) => self.listener = Some(listener),
-                Err(error) => {
-                    curia::warn!("block changes are off", { error: error.to_string() });
-                    self.listener_slots = None;
-                }
+        self.loaded += loaded as u64;
+        self.log.chunks_read(self.loaded);
+        for source in [ColorSource::Vanilla, ColorSource::Table, ColorSource::Fallback] {
+            if self.probe.met(source) {
+                self.log.colours(source);
             }
         }
-        let Some(listener) = self.listener.as_ref() else { return };
-        match player.block_source() {
-            // SAFETY: the game returned the player's live dimension BlockSource
-            Some(source) => unsafe { listener.attach(entries, source.as_ptr()) },
-            None => listener.detach(entries),
+    }
+
+    // the columns block changes asked for, of the player's dimension
+    fn read_changes(&mut self, source: &BlockSource<'_>, dimension: i32) {
+        while let Some(column) = self.changes.pop() {
+            if column.dimension != dimension {
+                continue;
+            }
+            let ProbeRequest::Column { pos, index } = self.sink.block_changed(column.x, column.z, dimension) else {
+                continue;
+            };
+            if let Some(sample) = self.probe.probe_column(source, pos, index, &self.sink) {
+                self.sink.submit_column(pos, index, sample);
+                self.log.block_change_column(column.x, column.z);
+            }
         }
     }
 
-    fn detach_listener(&mut self) {
-        if let Some(listener) = self.listener.as_ref() {
-            listener.detach(&self.entries);
+    // names the biome ids the plan asks for; a column with no biome id gets an empty name, so it does not wait
+    fn answer_biomes(&mut self, requests: &[u16]) {
+        for &id in requests {
+            if id == GameSample::NO_BIOME {
+                self.sink.biome_name(id, "");
+                continue;
+            }
+            if let Some(name) = self.probe.biomes().get(id) {
+                self.sink.biome_name(id, name);
+                self.log.biome_named(id, name);
+            }
         }
-    }
-
-    // the new and old blocks have the same type name, so the map colour cannot change
-    #[allow(unsafe_code)]
-    fn same_type(entries: &GameEntries, change: &BlockChange) -> bool {
-        // SAFETY: the game passes live Block references for the call
-        let block = unsafe { amml_game::Block::from_raw(change.block, entries) };
-        // SAFETY: as above
-        let old = unsafe { amml_game::Block::from_raw(change.old_block, entries) };
-        let name = block.as_ref().and_then(|block| block.type_name()).map(|name| name.as_bytes());
-        let old_name = old.as_ref().and_then(|old| old.type_name()).map(|name| name.as_bytes());
-        name == old_name
     }
 }

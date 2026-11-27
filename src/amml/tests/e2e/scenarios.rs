@@ -10,7 +10,22 @@ use crate::Host;
 
 const M: u32 = 0x4D;
 const EQUALS: u32 = 0xBB;
-const ESCAPE: u32 = 0x1B;
+const ESCAPE: u16 = 0x1B;
+const GAME_M: u16 = 0x4D;
+
+#[test]
+fn an_m_press_from_the_game_keys_closes_the_open_world_map() {
+    let mut host = Host::new();
+
+    host.key(M, 0);
+    let open = host.session().runtime().view_flags().world_map_open;
+    // the input lease of the open map keeps M from the manager's router: the bind is matched from the game's keys
+    host.game_key(GAME_M);
+
+    assert!(open, "M opened the world map");
+    assert!(!host.session().runtime().view_flags().world_map_open, "M from the game's keys closed it");
+    let _dir = host.shutdown();
+}
 
 #[test]
 fn the_manager_accepts_the_descriptor_and_writes_the_default_config() {
@@ -36,7 +51,8 @@ fn m_opens_the_world_map_overlay_and_escape_closes_it() {
     for _ in 0..3 {
         host.frame();
     }
-    host.key(ESCAPE, 0);
+    // Escape reaches the open map from the game's key feed: the input lease keeps it from the manager's router
+    host.game_key(ESCAPE);
     for _ in 0..3 {
         host.frame();
     }

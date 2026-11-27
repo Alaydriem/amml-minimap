@@ -1,5 +1,7 @@
 pub mod biome_key_file;
 pub mod cache_paths;
+pub mod folder_turn;
+pub mod folder_turns;
 pub mod journal;
 pub mod json_file;
 pub mod line_file;
@@ -8,10 +10,13 @@ pub mod region_codec;
 pub mod region_files;
 pub mod store_service;
 mod store_worker;
+pub mod turn_latch;
 pub mod waypoint_file;
 
 pub use biome_key_file::BiomeKeyFile;
 pub use cache_paths::CachePaths;
+pub use folder_turn::FolderTurn;
+pub use folder_turns::FolderTurns;
 pub use journal::Journal;
 pub use json_file::JsonFile;
 pub use line_file::LineFile;
@@ -19,4 +24,5 @@ pub use record_codec::RecordCodec;
 pub use region_codec::RegionCodec;
 pub use region_files::RegionFiles;
 pub use store_service::StoreService;
+pub use turn_latch::TurnLatch;
 pub use waypoint_file::WaypointFile;

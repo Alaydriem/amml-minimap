@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use alaydriem_minimap::traits::MapSink;
 use minimap_core::structs::chunk::{ChunkProbe, ColumnSample};
 use minimap_core::structs::pos::ChunkPos;
@@ -5,40 +7,24 @@ use minimap_runtime::errors::RuntimeError;
 use minimap_runtime::structs::{ProbeRequest, ScanPlan, SubmitStatus, TickInput};
 use minimap_store::structs::WorldIdentity;
 
-use super::SinkCall;
+use crate::support::SinkCall;
 
-// a MapSink that records each call; its tick hands out `plan`, its block change answers `request`
+// a MapSink that records each call and answers with the plan, colour table and void colours a test sets
+#[derive(Default)]
 pub struct RecordingSink {
     pub calls: Vec<SinkCall>,
-    pub probes: Vec<ChunkProbe>,
-    pub samples: Vec<ColumnSample>,
     pub plan: ScanPlan,
-    pub request: ProbeRequest,
     pub colors: Vec<(String, u32)>,
+    pub void_colors: HashMap<String, u32>,
+    // the column a block change asks for, by block x and z
+    pub column_requests: HashMap<(i32, i32), (ChunkPos, usize)>,
+    pub ticks: Vec<TickInput>,
+    pub submitted: Vec<(ChunkPos, SubmitStatus, ChunkProbe)>,
 }
 
 impl RecordingSink {
-    pub fn new(plan: ScanPlan) -> Self {
-        Self {
-            calls: Vec::new(),
-            probes: Vec::new(),
-            samples: Vec::new(),
-            plan,
-            request: ProbeRequest::None,
-            colors: vec![("minecraft:lava".to_string(), u32::from_le_bytes([230, 110, 20, 255]))],
-        }
-    }
-
-    // a plan that asks for the chunk at (0, 0) with the camera above the world
-    pub fn probing() -> Self {
-        let plan = ScanPlan {
-            candidates: vec![ChunkPos::new(0, 0, 0)],
-            limit: 8,
-            camera_height: 320,
-            transparent_water: true,
-            ..ScanPlan::default()
-        };
-        Self::new(plan)
+    pub fn submitted_status(&self) -> Vec<(ChunkPos, SubmitStatus)> {
+        self.submitted.iter().map(|(pos, status, _)| (*pos, *status)).collect()
     }
 }
 
@@ -53,31 +39,32 @@ impl MapSink for RecordingSink {
     }
 
     fn tick(&mut self, input: &TickInput, plan: &mut ScanPlan) {
-        self.calls.push(SinkCall::Tick { present: input.player.present });
-        *plan = if input.player.present { self.plan.clone() } else { ScanPlan::default() };
+        self.ticks.push(*input);
+        *plan = self.plan.clone();
     }
 
     fn submit_chunk(&mut self, pos: ChunkPos, status: SubmitStatus, probe: &ChunkProbe) {
-        self.calls.push(SinkCall::Submit(pos, status));
-        self.probes.push(*probe);
+        self.submitted.push((pos, status, *probe));
     }
 
     fn block_changed(&mut self, x: i32, z: i32, dim: i32) -> ProbeRequest {
         self.calls.push(SinkCall::BlockChanged(x, z, dim));
-        self.request
+        match self.column_requests.get(&(x, z)) {
+            Some((pos, index)) => ProbeRequest::Column { pos: *pos, index: *index },
+            None => ProbeRequest::None,
+        }
     }
 
     fn submit_column(&mut self, pos: ChunkPos, index: usize, sample: ColumnSample) {
-        self.calls.push(SinkCall::Column(pos, index));
-        self.samples.push(sample);
+        self.calls.push(SinkCall::Column(pos, index, sample));
     }
 
     fn biome_name(&mut self, id: u16, name: &str) {
         self.calls.push(SinkCall::BiomeName(id, name.to_string()));
     }
 
-    fn resolve_void_color(&self, _biome: &str, fallback: u32) -> u32 {
-        fallback
+    fn resolve_void_color(&self, biome: &str, fallback: u32) -> u32 {
+        self.void_colors.get(biome).copied().unwrap_or(fallback)
     }
 
     fn block_colors(&self) -> &[(String, u32)] {

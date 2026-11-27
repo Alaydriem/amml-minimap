@@ -35,4 +35,7 @@ pub trait ManagerPort {
 
     // the localizer the world map's panels resolve their words with, from the next frame on
     fn set_localizer(&self, localizer: Arc<Localizer>);
+
+    // whether the manager's own panel is open
+    fn panel_open(&self) -> bool;
 }

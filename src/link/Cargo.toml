@@ -12,6 +12,7 @@ autotests = false
 amm-abi.workspace = true
 amm-client.workspace = true
 amm-core = { workspace = true, features = ["egui"] }
+amml-api.workspace = true
 curia.workspace = true
 hcl-rs.workspace = true
 minimap-core.workspace = true

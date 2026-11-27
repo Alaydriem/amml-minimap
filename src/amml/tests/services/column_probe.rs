@@ -1,102 +1,109 @@
-use alaydriem_minimap::services::{ColumnProbe, MapColorReader};
-use amml_game::BlockSource;
+use alaydriem_minimap::services::{ColumnColors, ColumnProbe};
+use amml_api::testing::{FakeGame, FakeWorld};
+use amml_api::{Area, ChunkLoad, ColumnSample};
 use bytemuck::Zeroable;
 use minimap_core::structs::chunk::ChunkProbe;
 use minimap_core::structs::pos::ChunkPos;
 use minimap_runtime::structs::SubmitStatus;
 
-use crate::support::{FakePalette, FakeWorld, RecordingSink};
+use crate::support::{FakeTerrain, Frame, MinimapRig, RecordingSink};
 
-fn probe(world: &mut FakeWorld, optional: bool) -> (SubmitStatus, ChunkProbe) {
-    let entries = FakeWorld::entries(optional);
-    let sink = RecordingSink::probing();
-    let mut out = ChunkProbe::zeroed();
-    // SAFETY: a live fake source
-    let region = unsafe { BlockSource::from_raw(world.source.ptr(), &entries) }.unwrap();
-    let status = ColumnProbe::new(false).probe_chunk(&entries, &region, ChunkPos::new(0, 0, 0), &sink, &mut out);
-    (status, out)
+fn game(world: FakeWorld) -> FakeGame {
+    let game = MinimapRig::game();
+    game.set_client(MinimapRig::player(0, world));
+    game
+}
+
+fn probe(game: &FakeGame) -> ColumnProbe {
+    ColumnProbe::new(&MinimapRig::ctx(game))
+}
+
+// probes the chunk at `pos` in one tick
+fn probe_chunk(game: &FakeGame, pos: (i32, i32)) -> (SubmitStatus, ChunkProbe) {
+    let mut probe = probe(game);
+    Frame::run(game, move |client| {
+        let source = client.local_player().unwrap().block_source().unwrap();
+        let mut out = Box::new(ChunkProbe::zeroed());
+        let status =
+            probe.probe_chunk(&source, ChunkPos { x: pos.0, z: pos.1, dim: 0 }, &RecordingSink::default(), &mut out);
+        (status, *out)
+    })
 }
 
 #[test]
-fn a_chunk_that_is_not_loaded_is_not_loaded_and_no_block_is_read() {
-    let mut world = FakeWorld::new(FakePalette::STONE);
-    world.chunk.layout.load_state = 0;
+fn a_chunk_the_game_lacks_or_has_not_loaded_is_not_loaded() {
+    let mut world = FakeTerrain::world(&[]);
+    world.chunks.insert((1, 0), FakeTerrain::chunk(ChunkLoad::NotLoaded, FakeTerrain::stone()));
+    world.chunks.insert((2, 0), FakeTerrain::chunk(ChunkLoad::TopPlaceholder, FakeTerrain::stone()));
+    let game = game(world);
 
-    let (status, _) = probe(&mut world, true);
-
-    assert_eq!(status, SubmitStatus::NotLoaded);
-    assert_eq!(world.chunk.block_reads(), 0);
-    assert_eq!(world.chunk.reads_outside(), 0);
+    assert_eq!(probe_chunk(&game, (0, 0)).0, SubmitStatus::NotLoaded);
+    assert_eq!(probe_chunk(&game, (1, 0)).0, SubmitStatus::NotLoaded);
+    assert_eq!(probe_chunk(&game, (2, 0)).0, SubmitStatus::TopPlaceholder);
 }
 
 #[test]
-fn a_chunk_with_no_sub_chunks_is_a_top_placeholder_and_no_block_is_read() {
-    let mut world = FakeWorld::with_chunk(FakePalette::STONE, 0, false);
+fn a_loaded_chunk_fills_every_column_with_colour_heights_and_biome() {
+    let game = game(FakeTerrain::world(&[(0, 0)]));
 
-    let (status, _) = probe(&mut world, true);
-
-    assert_eq!(status, SubmitStatus::TopPlaceholder);
-    assert_eq!(world.chunk.block_reads(), 0);
-    assert_eq!(world.chunk.reads_outside(), 0);
-}
-
-#[test]
-fn a_placeholder_top_sub_chunk_is_a_top_placeholder_and_nothing_past_the_list_is_read() {
-    let mut world = FakeWorld::with_chunk(FakePalette::STONE, 2, true);
-
-    let (status, _) = probe(&mut world, true);
-
-    assert_eq!(status, SubmitStatus::TopPlaceholder);
-    assert_eq!(world.chunk.block_reads(), 0);
-    assert_eq!(world.chunk.reads_outside(), 0);
-}
-
-#[test]
-fn a_chunk_not_in_the_source_is_not_loaded() {
-    let mut world = FakeWorld::new(FakePalette::STONE);
-    world.source.chunk_pos = [5, 5];
-
-    let (status, _) = probe(&mut world, true);
-
-    assert_eq!(status, SubmitStatus::NotLoaded);
-}
-
-#[test]
-fn a_loaded_chunk_reads_every_column_inside_its_height_range_only() {
-    let mut world = FakeWorld::new(FakePalette::STONE);
-
-    let (status, out) = probe(&mut world, true);
+    let (status, out) = probe_chunk(&game, (0, 0));
 
     assert_eq!(status, SubmitStatus::Loaded);
-    assert!(world.chunk.block_reads() >= 256);
-    assert_eq!(world.chunk.reads_outside(), 0);
     assert!(!out.surface.any_skipped());
-    assert_eq!(out.surface.height[0], 5);
+    assert_eq!(out.surface.surface[17], minimap_core::structs::Rgba::new(1, 2, 3, 255).packed());
+    assert_eq!((out.surface.height[17], out.surface.solid[17]), (65, 65));
+    assert_eq!(out.biome_ids[17], FakeTerrain::PLAINS);
 }
 
 #[test]
-fn without_the_minimap_features_the_probe_colours_from_the_name_table() {
-    let lava = u32::from_le_bytes([230, 110, 20, 255]);
-    let mut lava_world = FakeWorld::new(FakePalette::LAVA);
-    let mut stone_world = FakeWorld::new(FakePalette::STONE);
+fn skipped_and_retry_columns_are_marked() {
+    let mut chunk = FakeTerrain::chunk(ChunkLoad::Loaded, FakeTerrain::stone());
+    chunk.samples[3].flags = ColumnSample::SKIPPED;
+    chunk.samples[4].flags = ColumnSample::RETRY;
+    let mut world = FakeTerrain::world(&[]);
+    world.chunks.insert((0, 0), chunk);
+    let game = game(world);
 
-    let (lava_status, lava_probe) = probe(&mut lava_world, false);
-    let (stone_status, stone_probe) = probe(&mut stone_world, false);
+    let (_, out) = probe_chunk(&game, (0, 0));
 
-    assert_eq!(lava_status, SubmitStatus::Loaded);
-    assert!(lava_probe.surface.surface.iter().all(|colour| *colour == lava));
-    assert_eq!(stone_status, SubmitStatus::Loaded);
-    assert!(stone_probe.surface.surface.iter().all(|colour| *colour == MapColorReader::FALLBACK_BLOCK.packed()));
-    assert!(stone_probe.biome_ids.iter().all(|id| *id == 0));
+    assert!(out.surface.is_skipped(3));
+    assert!(out.surface.is_retry(4));
+    assert!(!out.surface.is_skipped(4));
 }
 
 #[test]
-fn transparent_water_shows_the_block_below_with_the_water_depth() {
-    let mut world = FakeWorld::new(FakePalette::WATER);
+fn without_the_map_colour_area_the_fixed_colours_show() {
+    let game = game(FakeTerrain::world(&[(0, 0)]));
+    game.withdraw_area(Area::WORLD_MAP_COLOR);
 
-    let (status, out) = probe(&mut world, false);
+    let (_, out) = probe_chunk(&game, (0, 0));
 
-    assert_eq!(status, SubmitStatus::Loaded);
-    assert_eq!(out.surface.surface[0], MapColorReader::FALLBACK_BLOCK.packed());
-    assert_eq!(out.surface.water[0] >> 24, 1);
+    assert_eq!(out.surface.surface[0], ColumnColors::FALLBACK_BLOCK.packed());
+}
+
+#[test]
+fn one_column_is_read_alone_and_not_from_a_chunk_that_is_not_loaded() {
+    let mut chunk = FakeTerrain::chunk(ChunkLoad::Loaded, FakeTerrain::stone());
+    chunk.samples[33].height = 99;
+    chunk.samples[34].flags = ColumnSample::SKIPPED;
+    let mut world = FakeTerrain::world(&[]);
+    world.chunks.insert((0, 0), chunk);
+    world.chunks.insert((1, 0), FakeTerrain::chunk(ChunkLoad::TopPlaceholder, FakeTerrain::stone()));
+    let game = game(world);
+    let mut probe = probe(&game);
+
+    let (read, skipped, placeholder) = Frame::run(&game, move |client| {
+        let source = client.local_player().unwrap().block_source().unwrap();
+        let sink = RecordingSink::default();
+        let at = |x| ChunkPos { x, z: 0, dim: 0 };
+        (
+            probe.probe_column(&source, at(0), 33, &sink),
+            probe.probe_column(&source, at(0), 34, &sink),
+            probe.probe_column(&source, at(1), 33, &sink),
+        )
+    });
+
+    assert_eq!(read.map(|sample| sample.height), Some(99));
+    assert_eq!(skipped, None);
+    assert_eq!(placeholder, None);
 }

@@ -23,8 +23,7 @@ impl EventRouter {
             | ModEvent::Suspended { .. }
             | ModEvent::Resumed(_)
             | ModEvent::CapabilityAvailable(_) => RoutedEvent::Lease(event),
-            // raw keys and pointer: the world map reads them from the egui input of its frame; and events the
-            // manager adds for other mods
+            // the input lease of the link (minimap takes none), screenshots and events the manager adds for other mods
             _ => RoutedEvent::Ignored,
         }
     }

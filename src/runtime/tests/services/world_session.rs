@@ -14,6 +14,7 @@ use minimap_core::structs::view::ViewState;
 use minimap_core::traits::BakeEnvironment;
 use minimap_runtime::services::{ExportService, WorldSession};
 use minimap_runtime::structs::{ProbeRequest, Shared, SubmitStatus};
+use minimap_store::services::FolderTurns;
 
 const BAND: i32 = 2;
 
@@ -29,7 +30,8 @@ fn session(dir: &std::path::Path) -> (Arc<Shared>, WorldSession) {
         MapUi::new(1.0),
     ));
     let exports = Arc::new(ExportService::start(dir, Arc::clone(&shared)).unwrap());
-    let mut session = WorldSession::start(Arc::clone(&shared), &config, None, 0, exports).unwrap();
+    let turns = FolderTurns::new_shared();
+    let mut session = WorldSession::start(Arc::clone(&shared), &config, None, 0, exports, &turns, None).unwrap();
     let cave =
         MapLayer { id: LayerIds::cave(0, BAND), dim: 0, band: Some(BAND), camera_height: 47, scan_radius_chunks: 4 };
     session.change_layer(&cave);
@@ -56,7 +58,7 @@ fn a_cave_band_stores_see_through_columns_as_rock_and_every_column_flat_at_its_f
         assert_eq!(stored.surface[7], ore);
         assert_eq!((stored.height[0], stored.solid[200]), (32, 32));
     }
-    session.finish();
+    session.finish().run();
 }
 
 #[test]
@@ -75,5 +77,5 @@ fn a_block_change_in_the_real_dimension_asks_for_the_cave_layer_column() {
         ProbeRequest::Column { pos: ChunkPos::new(0, 0, layer), index: 4 * 16 + 3 }
     );
     assert_eq!(session.block_changed(3, 4, 1), ProbeRequest::None);
-    session.finish();
+    session.finish().run();
 }

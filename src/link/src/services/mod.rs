@@ -1,4 +1,6 @@
+pub mod bind_matcher;
 pub mod event_router;
+pub mod key_feed;
 pub mod lease_controller;
 pub mod link_port;
 pub mod minimap_frame_handler;
@@ -7,7 +9,9 @@ pub mod settings_bridge;
 pub mod system_clipboard;
 pub mod texture_grant_reader;
 
+pub use bind_matcher::BindMatcher;
 pub use event_router::EventRouter;
+pub use key_feed::KeyFeed;
 pub use lease_controller::LeaseController;
 pub use minimap_frame_handler::MinimapFrameHandler;
 pub use minimap_session::MinimapSession;

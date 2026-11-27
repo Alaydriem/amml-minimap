@@ -31,14 +31,9 @@ fn keybind_phases_map_one_to_one() {
 }
 
 #[test]
-fn raw_input_events_are_ignored() {
-    let raw = [
-        ModEvent::Key { vk: 0x1B, down: true, repeat: false },
-        ModEvent::PointerButton { button: 0, down: true, x: 1.0, y: 2.0 },
-        ModEvent::PointerDelta { dx: 1.0, dy: 1.0 },
-        ModEvent::Wheel { delta: 1.0 },
-    ];
-    for event in raw {
+fn input_lease_events_are_ignored() {
+    let lease = [ModEvent::InputLeaseSuspended, ModEvent::InputLeaseResumed, ModEvent::InputLeaseLost];
+    for event in lease {
         assert_eq!(EventRouter::route(event), RoutedEvent::Ignored);
     }
 }

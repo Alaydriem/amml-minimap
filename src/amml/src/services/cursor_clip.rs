@@ -1,74 +1,98 @@
+use amml_api::{ApiError, CursorClip as Clip, Logger, Window};
 use minimap_runtime::structs::CursorAction;
-use windows_sys::Win32::Foundation::{POINT, RECT};
-use windows_sys::Win32::Graphics::Gdi::ClientToScreen;
-use windows_sys::Win32::UI::WindowsAndMessaging::{
-    CURSORINFO, ClipCursor, GetClientRect, GetCursorInfo, GetForegroundWindow,
-};
 
-use crate::services::GameWindow;
-
-// the system cursor: whether the game hides it, and the clip the scan plan asks for
+// the cursor clip the scan plan asks for, through the loader's window. The clip is dropped while the game does not
+// hold the mouse (menus, chat, the world map), at a world leave and at disable. The loader drops it at focus loss
+// and applies it again when the focus returns, so a focus loss changes only what is logged. No clip is asked while
+// the loader knows no game window. A refused request is warned once per error kind
 pub struct CursorClip {
-    // the last action applied was a clip, so a stop must give the cursor back
-    clipped: bool,
+    window: Window,
+    log: Logger,
+    // the loader holds a clip request of this mod
+    requested: bool,
+    // the clip holds the cursor now: requested and the window in the foreground
+    holding: bool,
+    // a bit per ApiError kind already warned about
+    warned: u8,
 }
 
 impl CursorClip {
-    pub fn new() -> Self {
-        Self { clipped: false }
+    pub fn new(window: Window, log: Logger) -> Self {
+        Self { window, log, requested: false, holding: false, warned: 0 }
     }
 
-    // gives back a clip this service made; nothing otherwise
-    #[allow(unsafe_code)]
-    pub fn release(&mut self) {
-        if self.clipped {
-            // SAFETY: a null rectangle releases the clip
-            unsafe { ClipCursor(std::ptr::null()) };
-            self.clipped = false;
+    // once per client tick: `mouse_captured`, the game holds the mouse; `foreground`, the game window is in front
+    // (`None`: the loader knows no game window yet)
+    pub fn apply(&mut self, action: CursorAction, mouse_captured: bool, foreground: Option<bool>) {
+        let window = foreground.is_some();
+        let foreground = foreground.unwrap_or(false);
+        let wanted = match action {
+            CursorAction::ClipToCentre => true,
+            CursorAction::Release => false,
+            CursorAction::None => self.requested,
+        };
+        let wanted = wanted && mouse_captured && window;
+        if wanted != self.requested {
+            self.request(wanted);
+        }
+        let reason = if !foreground {
+            "focus"
+        } else if !mouse_captured {
+            "mouse_free"
+        } else {
+            "released"
+        };
+        self.show(self.requested && foreground, reason);
+    }
+
+    // gives the cursor back now; `reason` names why in the log
+    pub fn drop_clip(&mut self, reason: &'static str) {
+        if self.requested {
+            self.request(false);
+        }
+        self.show(false, reason);
+    }
+
+    pub fn holding(&self) -> bool {
+        self.holding
+    }
+
+    fn request(&mut self, clip: bool) {
+        let asked = if clip { Some(Clip::Centre) } else { None };
+        match self.window.clip_cursor(asked) {
+            Ok(()) => self.requested = clip,
+            Err(error) => {
+                self.warn(&error);
+                if !clip {
+                    self.requested = false;
+                }
+            }
         }
     }
 
-    // the game has hidden the system cursor (it holds the mouse for camera control)
-    #[allow(unsafe_code)]
-    pub fn cursor_hidden(&self) -> bool {
-        let mut cursor = CURSORINFO { cbSize: size_of::<CURSORINFO>() as u32, ..CURSORINFO::default() };
-        // SAFETY: `cursor` is a live CURSORINFO whose cbSize names its size
-        unsafe { GetCursorInfo(&raw mut cursor) != 0 && cursor.flags == 0 }
+    fn warn(&mut self, error: &ApiError) {
+        let bit = match error {
+            ApiError::NotAvailable => 1,
+            ApiError::NotReady => 2,
+            ApiError::Refused => 4,
+            ApiError::Stale => 8,
+            _ => 16,
+        };
+        if self.warned & bit == 0 {
+            self.warned |= bit;
+            self.log.warn("minimap cursor clip refused", &[("error", &error.to_string())]);
+        }
     }
 
-    // clips the cursor to a 2 x 2 box at the client centre, or gives it back; only while the game has the focus
-    #[allow(unsafe_code)]
-    pub fn apply(&mut self, action: CursorAction, window: &mut GameWindow) {
-        let Some(hwnd) = window.hwnd() else { return };
-        // SAFETY: no arguments
-        if unsafe { GetForegroundWindow() } != hwnd {
+    fn show(&mut self, holding: bool, reason: &'static str) {
+        if holding == self.holding {
             return;
         }
-        match action {
-            CursorAction::None => {}
-            CursorAction::ClipToCentre => {
-                let mut client = RECT { left: 0, top: 0, right: 0, bottom: 0 };
-                // SAFETY: `client` is a live RECT for the call
-                unsafe { GetClientRect(hwnd, &raw mut client) };
-                let mut centre = POINT { x: (client.right - client.left) / 2, y: (client.bottom - client.top) / 2 };
-                // SAFETY: `centre` is a live POINT for the call
-                unsafe { ClientToScreen(hwnd, &raw mut centre) };
-                let clip = RECT { left: centre.x - 1, top: centre.y - 1, right: centre.x + 1, bottom: centre.y + 1 };
-                // SAFETY: `clip` is a live RECT for the call
-                unsafe { ClipCursor(&raw const clip) };
-                self.clipped = true;
-            }
-            CursorAction::Release => {
-                // SAFETY: a null rectangle releases the clip
-                unsafe { ClipCursor(std::ptr::null()) };
-                self.clipped = false;
-            }
+        self.holding = holding;
+        if holding {
+            self.log.info("minimap cursor clip on", &[]);
+        } else {
+            self.log.info("minimap cursor clip off", &[("reason", reason)]);
         }
-    }
-}
-
-impl Default for CursorClip {
-    fn default() -> Self {
-        Self::new()
     }
 }
