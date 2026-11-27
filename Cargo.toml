@@ -32,17 +32,17 @@ minimap-link = { path = "src/link" }
 minimap-os = { path = "src/os" }
 hcl-rs = "=0.19.8"
 curia = "=0.2.2"
-# Path dependencies until the release tag: AMML and the mod manager are not tagged for the v3 API yet.
-amm-abi = { path = "../modmanager/crates/amm-abi" }
-amm-client = { path = "../modmanager/crates/amm-client", default-features = false, features = ["egui"] }
-amm-core = { path = "../modmanager/crates/amm-core" }
-amm-ffi = { path = "../modmanager/crates/amm-ffi" }
-amml-api = { path = "../amml/sdk/api" }
+# AMML and the mod manager at release tag 26.63.8
+amm-abi = { git = "https://github.com/Alaydriem/amml-modmanager.git", tag = "26.63.8" }
+amm-client = { git = "https://github.com/Alaydriem/amml-modmanager.git", tag = "26.63.8", default-features = false, features = ["egui"] }
+amm-core = { git = "https://github.com/Alaydriem/amml-modmanager.git", tag = "26.63.8" }
+amm-ffi = { git = "https://github.com/Alaydriem/amml-modmanager.git", tag = "26.63.8" }
+amml-api = { git = "https://github.com/Alaydriem/amml.git", tag = "26.63.8" }
 # The UI toolkit at the tag the mod manager builds with, so both use one amml-ui and one amml-i18n
-amml-ui = { git = "https://github.com/Alaydriem/amml.git", tag = "26.63.6" }
-amml-i18n = { git = "https://github.com/Alaydriem/amml.git", tag = "26.63.6" }
-amml-i18n-tool = { git = "https://github.com/Alaydriem/amml.git", tag = "26.63.6" }
-amml-ui-rules = { git = "https://github.com/Alaydriem/amml.git", tag = "26.63.6" }
+amml-ui = { git = "https://github.com/Alaydriem/amml.git", tag = "26.63.8" }
+amml-i18n = { git = "https://github.com/Alaydriem/amml.git", tag = "26.63.8" }
+amml-i18n-tool = { git = "https://github.com/Alaydriem/amml.git", tag = "26.63.8" }
+amml-ui-rules = { git = "https://github.com/Alaydriem/amml.git", tag = "26.63.8" }
 windows-sys = "0.61.2"
 
 [workspace.lints.clippy]
