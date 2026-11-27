@@ -1287,7 +1287,7 @@ checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 
 [[package]]
 name = "minimap-amml"
-version = "26.63.4"
+version = "26.63.8"
 dependencies = [
  "amm-abi",
  "amm-client",
@@ -1308,7 +1308,7 @@ dependencies = [
 
 [[package]]
 name = "minimap-bench"
-version = "26.63.4"
+version = "26.63.8"
 dependencies = [
  "amml-ui",
  "criterion",
@@ -1324,7 +1324,7 @@ dependencies = [
 
 [[package]]
 name = "minimap-core"
-version = "26.63.4"
+version = "26.63.8"
 dependencies = [
  "bytemuck",
  "curia",
@@ -1335,7 +1335,7 @@ dependencies = [
 
 [[package]]
 name = "minimap-link"
-version = "26.63.4"
+version = "26.63.8"
 dependencies = [
  "amm-abi",
  "amm-client",
@@ -1357,14 +1357,14 @@ dependencies = [
 
 [[package]]
 name = "minimap-os"
-version = "26.62.0"
+version = "26.63.8"
 dependencies = [
  "windows-sys",
 ]
 
 [[package]]
 name = "minimap-runtime"
-version = "26.63.4"
+version = "26.63.8"
 dependencies = [
  "bytemuck",
  "crossbeam-channel",
@@ -1382,7 +1382,7 @@ dependencies = [
 
 [[package]]
 name = "minimap-store"
-version = "26.63.4"
+version = "26.63.8"
 dependencies = [
  "bytemuck",
  "crossbeam-channel",
@@ -1398,7 +1398,7 @@ dependencies = [
 
 [[package]]
 name = "minimap-ui"
-version = "26.63.4"
+version = "26.63.8"
 dependencies = [
  "amml-i18n",
  "amml-i18n-tool",
